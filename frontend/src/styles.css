@@ -1,0 +1,83 @@
+/* A customer-facing ordering screen — big touchable tiles, not a form. */
+:root {
+  --bg: #0b0d12;
+  --panel: #12151c;
+  --border: #22262f;
+  --text: #e6e8eb;
+  --muted: #8a8f99;
+  --accent: #5b8cff;
+  --up: #3ecf8e;
+  --danger: #ff6b6b;
+  --warn: #ffb020;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Pretendard', 'Noto Sans KR', sans-serif;
+  font-size: 15px;
+}
+
+.shell { max-width: 720px; margin: 0 auto; padding: 24px 18px 50px; }
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 6px;
+}
+
+h1 { font-size: 20px; font-weight: 650; margin: 0; }
+.muted { color: var(--muted); font-size: 13px; }
+.lead { font-size: 14.5px; margin: 0 0 18px; }
+.lead strong { color: var(--text); }
+
+.btn.link {
+  background: none; border: none; color: var(--muted);
+  font-size: 13px; cursor: pointer; padding: 4px 0; font-family: inherit;
+}
+.btn.link:hover { color: var(--text); }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.tile {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px 12px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: border-color 0.12s ease, transform 0.12s ease, background 0.12s ease;
+}
+
+.tile:hover:not(:disabled) { border-color: var(--accent); transform: translateY(-1px); }
+.tile:disabled { opacity: 0.5; cursor: default; }
+
+.tile.menu .menu-name { font-size: 16px; }
+.tile.menu .menu-price { font-size: 13px; color: var(--muted); font-weight: 500; }
+
+.empty { color: var(--muted); text-align: center; padding: 40px 0; }
+
+.error, .notice {
+  font-size: 13.5px; line-height: 1.5;
+  border-radius: 9px; padding: 11px 13px; margin-bottom: 16px;
+}
+.error { color: var(--danger); background: rgba(255, 107, 107, 0.08); border: 1px solid rgba(255, 107, 107, 0.25); }
+.notice { color: var(--up); background: rgba(62, 207, 142, 0.08); border: 1px solid rgba(62, 207, 142, 0.25); }

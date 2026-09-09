@@ -1,0 +1,23 @@
+server:
+  port: 8085
+  servlet:
+    context-path: /channel-order
+
+spring:
+  application:
+    name: sun-moon-java-platform-channel-order
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,info
+  endpoint:
+    health:
+      show-details: always
+
+# Where the real order lands. This channel never stores an order itself —
+# it only resolves a (storeId, menuId) button press into a real request
+# and forwards it.
+order-channel:
+  order-service-url: ${ORDER_SERVICE_URL:http://localhost:8083/order}
