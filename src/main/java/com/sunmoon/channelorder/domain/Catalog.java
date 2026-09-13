@@ -53,6 +53,11 @@ public class Catalog {
         // A simple, deterministic price ladder — there is no real menu to
         // price against, and every order in this system is a sample.
         BigDecimal price = BigDecimal.valueOf(6000 + (n - 1) * 1000L);
-        return new MenuItem("menu-%02d".formatted(n), n + "메뉴", price);
+        // Split across two stations to demonstrate per-menu KDS routing —
+        // 1~5 to kds-01, 6~10 to kds-02. Illustrative, not a real menu
+        // plan: a real one would group by prep station (grill/drinks),
+        // not by menu number.
+        String kdsDeviceId = n <= 5 ? "kds-01" : "kds-02";
+        return new MenuItem("menu-%02d".formatted(n), n + "메뉴", price, kdsDeviceId);
     }
 }

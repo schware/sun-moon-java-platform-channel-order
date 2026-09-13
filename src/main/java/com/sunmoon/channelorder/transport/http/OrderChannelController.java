@@ -64,7 +64,7 @@ public class OrderChannelController {
 
         try {
             var upstream = orderClient.placeOrder(
-                    request.storeId(), customerId, menu.get().name(), menu.get().price());
+                    request.storeId(), customerId, menu.get().name(), menu.get().price(), menu.get().kdsDeviceId());
 
             // Order's answer is passed through unchanged, status included —
             // this channel has no opinion about whether the order is valid

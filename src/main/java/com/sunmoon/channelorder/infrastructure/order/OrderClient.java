@@ -10,7 +10,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Places a real order with the Order service.
@@ -34,13 +34,20 @@ public class OrderClient {
     }
 
     public HttpResponse<String> placeOrder(
-            String storeId, String customerId, String menuName, BigDecimal amount) throws Exception {
+            String storeId, String customerId, String menuName, BigDecimal amount, String kdsDeviceId)
+            throws Exception {
 
-        String body = objectMapper.writeValueAsString(Map.of(
-                "storeId", storeId,
-                "customerId", customerId,
-                "menuName", menuName,
-                "amount", amount));
+        var fields = new HashMap<String, Object>();
+        fields.put("storeId", storeId);
+        fields.put("customerId", customerId);
+        fields.put("menuName", menuName);
+        fields.put("amount", amount);
+        // Map.of rejects null values, and "no station assigned" is a real,
+        // valid case here — not an oversight to reject at this boundary.
+        if (kdsDeviceId != null) {
+            fields.put("kdsDeviceId", kdsDeviceId);
+        }
+        String body = objectMapper.writeValueAsString(fields);
 
         HttpRequest request = HttpRequest.newBuilder(URI.create(baseUrl + "/orders"))
                 .header("Content-Type", "application/json; charset=UTF-8")

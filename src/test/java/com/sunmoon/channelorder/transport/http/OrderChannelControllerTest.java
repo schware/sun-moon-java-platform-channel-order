@@ -35,7 +35,7 @@ class OrderChannelControllerTest {
         HttpResponse<String> upstream = mock(HttpResponse.class);
         when(upstream.statusCode()).thenReturn(201);
         when(upstream.body()).thenReturn("{\"id\":1,\"status\":\"PLACED\"}");
-        when(orderClient.placeOrder(anyString(), anyString(), anyString(), any())).thenReturn(upstream);
+        when(orderClient.placeOrder(anyString(), anyString(), anyString(), any(), any())).thenReturn(upstream);
 
         mockMvc.perform(post("/api/orders")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -62,7 +62,7 @@ class OrderChannelControllerTest {
     /** Order being down is a 502, not a 500 — the fault is upstream. */
     @Test
     void anUnreachableOrderServiceIsReportedAs502() throws Exception {
-        when(orderClient.placeOrder(anyString(), anyString(), anyString(), any()))
+        when(orderClient.placeOrder(anyString(), anyString(), anyString(), any(), any()))
                 .thenThrow(new java.net.ConnectException("refused"));
 
         mockMvc.perform(post("/api/orders")
