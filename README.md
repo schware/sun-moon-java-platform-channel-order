@@ -17,9 +17,32 @@ context-path **`/channel-order`**.
 
 ## Flow
 
-매장 선택 → 메뉴 선택 → 주문. That's the whole app — two screens reached
-by React state, never by URL, so there is no client-side router and no
-server-side SPA-forwarding to configure.
+매장 선택 → 메뉴 선택 → **확인** → 주문. Two screens reached by React
+state, never by URL, so there is no client-side router and no
+server-side SPA-forwarding to configure; the confirm step is a sheet
+over the menu screen rather than a third one.
+
+Until 2026-09-15 a tap *was* the order — the "주문 #12 접수됨" banner was
+a receipt after the fact, not a question before it. So a mistap was an
+order, and there was nowhere to put 결제 when it arrives.
+
+**The steps between tapping and placing are a declared list** —
+`FLOW` in `frontend/src/App.tsx`. Adding one is putting its name in that
+array and giving it a case in `StepPanel`; nothing else in the file has
+to know. That is the point of the change more than the question itself:
+결제 goes there next, and the 설계서 has more after it.
+
+Submitting the order and reporting the result are deliberately **not**
+steps in that list. They are not something a customer does, and mixing
+them in would mean every new step had to be careful not to land after
+the order was already placed. A failure keeps the sheet open so the
+customer can retry without picking the menu again; success closes it and
+leaves the receipt on the menu screen, where they can see it while
+ordering the next thing.
+
+The sheet holds one menu item because that is all this channel can order
+today. 장바구니 replaces that one field with a list and the step machine
+does not change.
 
 The catalog is fixed in code, not a database: 10 stores (`1매장`..`10매장`)
 each offering the same 10 menu items (`1메뉴`..`10메뉴`, ₩6,000–₩15,000).
@@ -82,6 +105,10 @@ You do not need Node to deploy. The Dockerfile builds the frontend in a
   shows as selectable. Surfacing that needs a periodic (`@Scheduled`)
   check against the Device Server's terminal registry, deliberately
   deferred rather than built alongside this first pass.
+- **결제.** The step it goes in exists and is empty — see [Flow](#flow).
+- **장바구니.** One item per order. The 설계서's `Order_Detail` means
+  multi-item orders, so this is the other half of the same change.
+- **주문 상태 조회.** A customer sees the receipt and nothing after it.
 - **A real catalog.** Stores and menus are a fixed list in code, not
   driven by BO's device/menu master data.
 - **Order cancellation.** Once placed, this channel has no way to
