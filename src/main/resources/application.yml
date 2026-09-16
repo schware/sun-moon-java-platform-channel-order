@@ -21,3 +21,7 @@ management:
 # and forwards it.
 order-channel:
   order-service-url: ${ORDER_SERVICE_URL:http://localhost:8083/order}
+  # 테이블 QR 게이트는 APP-SERVER가 판단합니다. 브라우저가 거기를 직접
+  # 부르지 않는 이유: APP-SERVER는 LAN 전용이고, 공개해도 origin이 달라져
+  # CORS가 필요해집니다. 손님 화면은 자기를 내려준 곳하고만 이야기합니다.
+  app-server-url: ${APP_SERVER_URL:http://localhost:8086/app-server}

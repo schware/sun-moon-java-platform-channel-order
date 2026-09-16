@@ -16,6 +16,48 @@ export interface MenuItem {
   price: number
 }
 
+/**
+ * 테이블 QR을 찍고 통과했을 때 돌아오는 것 — 어느 매장의 어느 자리이고,
+ * 그 매장이 지금 올라타 있는 판매일자.
+ */
+export interface TableEntry {
+  storeId: string
+  storeName: string
+  floor: number
+  tableNo: string
+  tableLabel: string
+  businessDate: string
+}
+
+/**
+ * 게이트가 돌려보낸 이유. `retryable` 이면 화면이 "다시 시도"를 보여주고,
+ * 아니면 직원을 부르라고 합니다 — 손님이 할 수 있는 일이 다릅니다.
+ */
+export interface TableRefusal {
+  reason: string
+  message: string
+  retryable: boolean
+}
+
+/**
+ * 상태 코드가 곧 이유입니다 — 404 없는 코드, 409 중지/마감, 503 확인 실패.
+ * 503만 기다렸다 다시 하면 되는 경우라 따로 표시합니다.
+ */
+export async function enterTable(qrCode: string): Promise<TableEntry | TableRefusal> {
+  const res = await fetch(`${BASE}/t/${encodeURIComponent(qrCode)}`)
+  const body = await res.json().catch(() => null)
+  if (res.ok) return body as TableEntry
+  return {
+    reason: body?.reason ?? `HTTP_${res.status}`,
+    message: body?.message ?? '주문 화면을 열지 못했습니다.',
+    retryable: res.status >= 500
+  }
+}
+
+export function isRefusal(v: TableEntry | TableRefusal): v is TableRefusal {
+  return (v as TableRefusal).reason !== undefined
+}
+
 async function failure(res: Response): Promise<Error> {
   try {
     const body = (await res.json()) as { error?: string }

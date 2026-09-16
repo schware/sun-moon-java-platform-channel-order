@@ -144,3 +144,16 @@ h1 { font-size: 20px; font-weight: 650; margin: 0; }
 .btn.ghost { background: transparent; color: var(--muted); }
 .btn.ghost:hover:not(:disabled) { color: var(--text); border-color: #3a3f4d; }
 .btn.primary:disabled, .btn.ghost:disabled { opacity: 0.45; cursor: default; }
+
+/* 테이블 QR로 들어왔을 때 머리에 붙는 자리 표시. 손님이 "내 자리가 맞나"를
+   한눈에 확인하는 유일한 단서라, 제목만큼 눈에 띄어야 합니다. */
+.table-badge {
+  font-size: 13px;
+  font-weight: 650;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid rgba(91, 140, 255, 0.3);
+  white-space: nowrap;
+}

@@ -1,23 +1,95 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
+  enterTable,
   fetchMenus,
   fetchStores,
   formatAmount,
+  isRefusal,
   placeOrder,
   type MenuItem,
   type PlacedOrder,
-  type Store
+  type Store,
+  type TableEntry,
+  type TableRefusal
 } from './api'
 
 /**
- * Store first, then menu — the two screens this channel has, in the
- * order the owner asked for. No free-text field anywhere: every order
- * placed here is one of a fixed set of (store, menu) buttons.
+ * 두 가지 방법으로 들어옵니다.
+ *
+ *  - 그냥 열면   매장 선택 → 메뉴 (원래대로)
+ *  - 테이블 QR   /channel-order/t/{code} → 게이트 통과 → 바로 메뉴
+ *
+ * router는 들이지 않았습니다. 시작할 때 주소에서 코드를 한 번 읽고, 그
+ * 뒤로는 예전처럼 state로만 움직입니다 — 진입 지점이 하나 생긴 것이지
+ * 경로가 생긴 것은 아닙니다.
  */
 type Screen = { name: 'stores' } | { name: 'menus'; store: Store }
 
+/** 주소가 /channel-order/t/{code} 면 그 코드. 아니면 null. */
+function qrCodeFromUrl(): string | null {
+  const match = window.location.pathname.match(/\/t\/([^/?#]+)\/?$/)
+  return match ? decodeURIComponent(match[1]!) : null
+}
+
+type Gate =
+  | { state: 'none' }
+  | { state: 'checking' }
+  | { state: 'in'; entry: TableEntry }
+  | { state: 'refused'; refusal: TableRefusal }
+
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'stores' })
+  const [gate, setGate] = useState<Gate>(() =>
+    qrCodeFromUrl() === null ? { state: 'none' } : { state: 'checking' })
+
+  const check = useCallback(() => {
+    const code = qrCodeFromUrl()
+    if (code === null) return
+    setGate({ state: 'checking' })
+    enterTable(code)
+      .then((result) => setGate(isRefusal(result)
+        ? { state: 'refused', refusal: result }
+        : { state: 'in', entry: result }))
+      .catch(() => setGate({
+        state: 'refused',
+        refusal: { reason: 'NETWORK', message: '연결이 끊겼습니다.', retryable: true }
+      }))
+  }, [])
+
+  useEffect(() => { check() }, [check])
+
+  if (gate.state === 'checking') {
+    return <div className="shell"><div className="empty">확인하는 중…</div></div>
+  }
+
+  if (gate.state === 'refused') {
+    return (
+      <div className="shell">
+        <header className="bar"><h1>주문 채널</h1></header>
+        <div className="error" role="alert">{gate.refusal.message}</div>
+        {gate.refusal.retryable && (
+          <button className="btn primary" onClick={check}>다시 시도</button>
+        )}
+      </div>
+    )
+  }
+
+  // 테이블 QR로 들어왔으면 매장을 고를 일이 없습니다 — 자리가 매장을
+  // 이미 말해주고, 그것이 QR을 쓰는 이유입니다.
+  if (gate.state === 'in') {
+    const { entry } = gate
+    return (
+      <div className="shell">
+        <header className="bar">
+          <h1>{entry.storeName}</h1>
+          <span className="table-badge">
+            {entry.floor > 1 ? entry.floor + '층 ' : ''}{entry.tableLabel}
+          </span>
+        </header>
+        <MenuList store={{ id: entry.storeId, name: entry.storeName }} table={entry} />
+      </div>
+    )
+  }
 
   return (
     <div className="shell">
@@ -68,7 +140,7 @@ function StoreList({ onPick }: { onPick: (store: Store) => void }) {
   )
 }
 
-function MenuList({ store }: { store: Store }) {
+function MenuList({ store, table }: { store: Store; table?: TableEntry }) {
   const [menus, setMenus] = useState<MenuItem[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -90,7 +162,9 @@ function MenuList({ store }: { store: Store }) {
   return (
     <>
       <p className="muted lead">
-        <strong>{store.name}</strong>의 메뉴입니다. 메뉴를 고르면 확인 화면이 나옵니다.
+        {table
+          ? <>주문하시면 <strong>{table.tableLabel}</strong> 자리로 가져다 드립니다.</>
+          : <><strong>{store.name}</strong>의 메뉴입니다. 메뉴를 고르면 확인 화면이 나옵니다.</>}
       </p>
 
       {error && <div className="error" role="alert">{error}</div>}
