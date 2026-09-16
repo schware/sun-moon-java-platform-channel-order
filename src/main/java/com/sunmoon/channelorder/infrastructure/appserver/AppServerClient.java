@@ -59,6 +59,45 @@ public class AppServerClient {
         }
     }
 
+    /** 오늘 이 매장에서 메뉴 하나가 처한 사정 — 없는지, 얼마나 기다리는지. */
+    public record MenuStatus(boolean soldOut, Integer estimatedMinutes) {
+    }
+
+    /**
+     * 오늘의 메뉴판을 메뉴코드로 찾아볼 수 있게 받아옵니다.
+     *
+     * <p>이 채널의 카탈로그는 아직 코드에 박혀 있고(=매장·메뉴 목록),
+     * BO 마스터에서 오는 것은 <b>그 위에 덮는 사정</b>뿐입니다. 언젠가
+     * 목록 자체가 APP-SERVER에서 오면 이 메서드가 그 자리를 이어받습니다.
+     *
+     * <p>못 읽으면 <b>빈 지도</b>입니다 — 예외가 아닙니다. 결품 표시는
+     * 메뉴판을 꾸미는 값이고, 그것 때문에 메뉴가 통째로 안 나오면 손해가
+     * 더 큽니다. 표시가 빠진 채로 주문이 들어가면 POS가 거절할 수
+     * 있지만, 메뉴판이 안 나오면 아무도 아무것도 못 삽니다.
+     */
+    public java.util.Map<String, MenuStatus> menuStatuses(String storeId) {
+        try {
+            String body = client.get()
+                    .uri(uri -> uri.path("/menus").queryParam("storeId", storeId).build())
+                    .retrieve()
+                    .body(String.class);
+            if (body == null) {
+                return java.util.Map.of();
+            }
+            com.fasterxml.jackson.databind.JsonNode board =
+                    new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+            java.util.Map<String, MenuStatus> byCode = new java.util.HashMap<>();
+            for (com.fasterxml.jackson.databind.JsonNode item : board.path("menus")) {
+                byCode.put(item.path("menuCode").asText(), new MenuStatus(
+                        item.path("soldOut").asBoolean(false),
+                        item.hasNonNull("estimatedMinutes") ? item.get("estimatedMinutes").asInt() : null));
+            }
+            return byCode;
+        } catch (Exception e) {
+            return java.util.Map.of();
+        }
+    }
+
     /**
      * 게이트의 응답을 <b>상태 코드까지 그대로</b> 넘깁니다. 404/409/503이
      * 각각 다른 뜻이고 화면이 그걸로 갈라지는데, 여기서 200으로 뭉개면

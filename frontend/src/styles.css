@@ -157,3 +157,34 @@ h1 { font-size: 20px; font-weight: 650; margin: 0; }
   border: 1px solid rgba(91, 140, 255, 0.3);
   white-space: nowrap;
 }
+
+/* 결품 — 목록에 남되 고를 수 없습니다.
+   빼버리면 손님은 그 메뉴가 원래 없는 줄 알고, 매장에는 "왜 안 파냐"가
+   아니라 "메뉴가 왜 없어졌냐"는 전화가 옵니다. 회색으로 죽이고 이유를
+   적어두는 편이 둘 다에게 낫습니다. */
+.tile.menu.sold-out {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.tile.menu.sold-out .menu-name { text-decoration: line-through; }
+
+.menu-flag {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #c0392b;
+}
+
+/* 예상시간은 약속이 아니라 짐작입니다 — 작고 조용하게 둡니다. */
+.menu-eta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.sheet-note {
+  margin: 8px 0 0;
+  font-size: 13.5px;
+  color: #6b7280;
+  line-height: 1.5;
+}

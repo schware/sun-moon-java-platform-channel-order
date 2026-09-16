@@ -14,6 +14,17 @@ export interface MenuItem {
   id: string
   name: string
   price: number
+  /**
+   * 오늘 이 매장에 없다는 뜻입니다. 메뉴를 내린 것과 다릅니다 — 내린
+   * 메뉴는 애초에 이 목록에 없습니다. 결품은 보여주되 고를 수 없게
+   * 합니다: 빼버리면 손님은 원래 없는 메뉴인 줄 압니다.
+   */
+  soldOut: boolean
+  /**
+   * 기준 조리시간 x (대기열 + 1). null 은 <b>모른다</b>이며 0분이
+   * 아닙니다 — 모르는 값은 안 그립니다.
+   */
+  estimatedMinutes: number | null
 }
 
 /**

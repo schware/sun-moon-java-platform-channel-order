@@ -187,11 +187,19 @@ function MenuList({ store, table }: { store: Store; table?: TableEntry }) {
         {menus.map((menu) => (
           <button
             key={menu.id}
-            className="tile menu"
+            className={`tile menu${menu.soldOut ? ' sold-out' : ''}`}
+            // 결품은 목록에 남되 눌리지 않습니다. 빼버리면 손님은 그
+            // 메뉴가 원래 없는 줄 알고, 매장에는 "왜 안 파냐"가 아니라
+            // "메뉴가 왜 없어졌냐"는 전화가 옵니다.
+            disabled={menu.soldOut}
             onClick={() => { setPlaced(null); setCheckingOut(menu) }}
           >
             <span className="menu-name">{menu.name}</span>
             <span className="menu-price">{formatAmount(menu.price)}</span>
+            {menu.soldOut
+              ? <span className="menu-flag">오늘 준비되지 않았습니다</span>
+              : menu.estimatedMinutes !== null
+                && <span className="menu-eta">약 {menu.estimatedMinutes}분</span>}
           </button>
         ))}
       </div>
@@ -284,7 +292,7 @@ function Checkout({ store, menu, qrCode, onClose }:
 
         {phase.name === 'failed' && <div className="error" role="alert">{phase.message}</div>}
 
-        {step && <StepPanel step={step} />}
+        {step && <StepPanel step={step} menu={menu} />}
 
         <div className="sheet-actions">
           <button className="btn ghost" onClick={() => onClose(null)}
@@ -304,9 +312,19 @@ function Checkout({ store, menu, qrCode, onClose }:
 }
 
 /** One step's own content. A new step in {@link FLOW} gets a case here. */
-function StepPanel({ step }: { step: StepName }) {
+function StepPanel({ step, menu }: { step: StepName; menu: MenuItem }) {
   switch (step) {
     case 'confirm':
-      return <p className="sheet-ask">이 메뉴로 주문하시겠습니까?</p>
+      return (
+        <>
+          <p className="sheet-ask">이 메뉴로 주문하시겠습니까?</p>
+          {menu.estimatedMinutes !== null && (
+            <p className="sheet-note">
+              지금 주문하시면 <strong>약 {menu.estimatedMinutes}분</strong> 걸립니다.
+              앞의 주문에 따라 달라질 수 있습니다.
+            </p>
+          )}
+        </>
+      )
   }
 }

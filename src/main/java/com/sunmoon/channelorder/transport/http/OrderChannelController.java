@@ -82,6 +82,23 @@ public class OrderChannelController {
             tableNo = table.get().tableNo();
         }
 
+        // 결품이면 여기서 막습니다. 화면에서도 못 누르게 막혀 있지만,
+        // 손님이 메뉴를 보는 동안 떨어질 수 있고 화면은 그 순간을 모릅니다
+        // — 주문 직전에 한 번 더 보는 것이 그 창을 닫습니다.
+        //
+        // **게이트가 정해준 매장으로** 물어봅니다. 브라우저가 보낸 매장으로
+        // 물으면, 자리는 1호점인데 결품은 2호점 것을 보게 됩니다.
+        //
+        // APP-SERVER가 안 보이면 **통과시킵니다**. 확인할 수 없다고 모든
+        // 주문을 막으면 결품 표시 하나 때문에 장사가 멈추고, 그건 회복이
+        // 안 됩니다 — 반대로 결품인 줄 모르고 들어온 주문은 POS가 거절할
+        // 수 있습니다.
+        var status = appServer.menuStatuses(storeId).get(request.menuId());
+        if (status != null && status.soldOut()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", menu.get().name() + "은(는) 오늘 준비되지 않았습니다."));
+        }
+
         try {
             var upstream = orderClient.placeOrder(
                     storeId, customerId, menu.get().name(), menu.get().price(), menu.get().kdsDeviceId(),
