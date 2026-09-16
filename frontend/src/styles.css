@@ -188,3 +188,28 @@ h1 { font-size: 20px; font-weight: 650; margin: 0; }
   color: #6b7280;
   line-height: 1.5;
 }
+
+/* 수령번호 — 손님이 화면을 닫으면 다시 못 보는 값입니다.
+   부르는 번호를 크게, 증명하는 번호를 문장 안에 둡니다: 앞의 것은 멀리서
+   화면을 볼 때 찾는 값이고, 뒤의 것은 직원 앞에서 읽어주는 값이라
+   필요한 순간이 다릅니다. */
+.pickup {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.pickup-no {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.pickup-say {
+  font-size: 13px;
+  line-height: 1.5;
+}

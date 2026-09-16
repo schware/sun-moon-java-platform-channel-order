@@ -179,7 +179,19 @@ function MenuList({ store, table }: { store: Store; table?: TableEntry }) {
       {error && <div className="error" role="alert">{error}</div>}
       {placed && (
         <div className="notice" role="status">
-          주문 #{placed.id} 접수됨 — {placed.menuName} · {formatAmount(placed.amount)}
+          <div>주문 #{placed.id} 접수됨 — {placed.menuName} · {formatAmount(placed.amount)}</div>
+          {/* 부르는 번호와 증명하는 번호를 같이 남깁니다. 화면을 닫으면
+              다시 못 보는 값이라, 접수 안내가 이 값을 붙들어 두는
+              유일한 자리입니다. */}
+          {placed.pickupNo && (
+            <div className="pickup">
+              <span className="pickup-no">{placed.pickupNo}</span>
+              <span className="pickup-say">
+                화면에 <strong>{placed.pickupNo}</strong>이(가) 뜨면 가져가실 수 있습니다.
+                {placed.pickupPin && <> 직원에게 <strong>{placed.pickupPin}</strong>을(를) 말씀해주세요.</>}
+              </span>
+            </div>
+          )}
         </div>
       )}
 

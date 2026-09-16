@@ -98,6 +98,13 @@ export interface PlacedOrder {
   menuName: string
   amount: number
   status: string
+  /**
+   * 수령번호. `pickupNo` 는 DID에 뜨는 **부르는 번호**이고,
+   * `pickupPin` 은 직원에게 불러주는 **증명하는 번호** 네 자리입니다.
+   * 손님이 화면을 닫으면 다시 못 보므로, 접수 안내에 둘 다 남깁니다.
+   */
+  pickupNo: string | null
+  pickupPin: string | null
 }
 
 /** storeId + menuId only — no free text ever leaves this app. */
