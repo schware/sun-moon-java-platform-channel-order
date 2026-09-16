@@ -35,7 +35,7 @@ public class OrderClient {
 
     public HttpResponse<String> placeOrder(
             String storeId, String customerId, String menuName, BigDecimal amount, String kdsDeviceId,
-            Integer floor, String tableNo)
+            Integer floor, String tableNo, String qrCode)
             throws Exception {
 
         var fields = new HashMap<String, Object>();
@@ -53,6 +53,13 @@ public class OrderClient {
         if (tableNo != null) {
             fields.put("floor", floor);
             fields.put("tableNo", tableNo);
+        }
+        // QR 번호. 매출 키의 일부가 아니라 영수증에 함께 찍히는 추가
+        // 값입니다 (umbrella docs/adr/0009) — 자리 번호를 바꿔도 이
+        // 값은 그대로라, 나중에 "어느 스티커로 들어온 주문인가"를
+        // 되짚을 수 있습니다.
+        if (qrCode != null && !qrCode.isBlank()) {
+            fields.put("qrCode", qrCode);
         }
         String body = objectMapper.writeValueAsString(fields);
 

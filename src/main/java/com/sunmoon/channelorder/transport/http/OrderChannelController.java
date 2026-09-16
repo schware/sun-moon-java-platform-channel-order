@@ -71,6 +71,7 @@ public class OrderChannelController {
         // 한 번 더 봅니다 — 메뉴를 고르는 동안 마감했을 수 있습니다.
         Integer floor = null;
         String tableNo = null;
+        String qrCode = null;
         String storeId = request.storeId();
         if (request.qrCode() != null && !request.qrCode().isBlank()) {
             var table = appServer.resolveTable(request.qrCode());
@@ -80,6 +81,7 @@ public class OrderChannelController {
             storeId = table.get().storeId();
             floor = table.get().floor();
             tableNo = table.get().tableNo();
+            qrCode = request.qrCode();
         }
 
         // 결품이면 여기서 막습니다. 화면에서도 못 누르게 막혀 있지만,
@@ -102,7 +104,7 @@ public class OrderChannelController {
         try {
             var upstream = orderClient.placeOrder(
                     storeId, customerId, menu.get().name(), menu.get().price(), menu.get().kdsDeviceId(),
-                    floor, tableNo);
+                    floor, tableNo, qrCode);
 
             // Order's answer is passed through unchanged, status included —
             // this channel has no opinion about whether the order is valid

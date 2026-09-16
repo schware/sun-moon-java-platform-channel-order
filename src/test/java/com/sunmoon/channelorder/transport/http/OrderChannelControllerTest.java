@@ -44,7 +44,7 @@ class OrderChannelControllerTest {
         HttpResponse<String> upstream = mock(HttpResponse.class);
         when(upstream.statusCode()).thenReturn(201);
         when(upstream.body()).thenReturn("{\"id\":1,\"status\":\"PLACED\"}");
-        when(orderClient.placeOrder(anyString(), anyString(), anyString(), any(), any(), any(), any()))
+        when(orderClient.placeOrder(anyString(), anyString(), anyString(), any(), any(), any(), any(), any()))
                 .thenReturn(upstream);
 
         mockMvc.perform(post("/api/orders")
@@ -94,7 +94,7 @@ class OrderChannelControllerTest {
         HttpResponse<String> upstream = mock(HttpResponse.class);
         when(upstream.statusCode()).thenReturn(201);
         when(upstream.body()).thenReturn("{\"id\":1,\"status\":\"PLACED\"}");
-        when(orderClient.placeOrder(anyString(), anyString(), anyString(), any(), any(), any(), any()))
+        when(orderClient.placeOrder(anyString(), anyString(), anyString(), any(), any(), any(), any(), any()))
                 .thenReturn(upstream);
         // 못 읽으면 빈 지도 — AppServerClient 가 예외 대신 이걸 돌려줍니다.
         when(appServer.menuStatuses(anyString())).thenReturn(java.util.Map.of());
@@ -108,7 +108,7 @@ class OrderChannelControllerTest {
     /** Order being down is a 502, not a 500 — the fault is upstream. */
     @Test
     void anUnreachableOrderServiceIsReportedAs502() throws Exception {
-        when(orderClient.placeOrder(anyString(), anyString(), anyString(), any(), any(), any(), any()))
+        when(orderClient.placeOrder(anyString(), anyString(), anyString(), any(), any(), any(), any(), any()))
                 .thenThrow(new java.net.ConnectException("refused"));
 
         mockMvc.perform(post("/api/orders")
