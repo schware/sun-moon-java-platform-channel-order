@@ -200,6 +200,7 @@ function MenuList({ store, table }: { store: Store; table?: TableEntry }) {
         <Checkout
           store={store}
           menu={checkingOut}
+          qrCode={table ? qrCodeFromUrl() ?? undefined : undefined}
           onClose={(order) => {
             if (order) setPlaced(order)
             setCheckingOut(null)
@@ -236,8 +237,8 @@ type Phase =
  * The checkout sheet. One menu item for now — 장바구니 replaces
  * {@code menu} with a list, and nothing about the step machine changes.
  */
-function Checkout({ store, menu, onClose }:
-  { store: Store; menu: MenuItem; onClose: (placed: PlacedOrder | null) => void }) {
+function Checkout({ store, menu, qrCode, onClose }:
+  { store: Store; menu: MenuItem; qrCode?: string; onClose: (placed: PlacedOrder | null) => void }) {
   const [phase, setPhase] = useState<Phase>({ name: 'step', index: 0 })
   const step = phase.name === 'step' ? FLOW[phase.index] : undefined
 
@@ -256,7 +257,7 @@ function Checkout({ store, menu, onClose }:
       // Closes on success rather than showing a receipt of its own: the
       // confirmation belongs on the menu screen, where the customer can
       // see it while ordering the next thing.
-      onClose(await placeOrder(store.id, menu.id))
+      onClose(await placeOrder(store.id, menu.id, qrCode))
     } catch (e) {
       // A rejection here is Order's own state machine or the "no terminal
       // at this store" rule speaking — not this channel's business to

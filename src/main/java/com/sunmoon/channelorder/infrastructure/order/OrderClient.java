@@ -34,7 +34,8 @@ public class OrderClient {
     }
 
     public HttpResponse<String> placeOrder(
-            String storeId, String customerId, String menuName, BigDecimal amount, String kdsDeviceId)
+            String storeId, String customerId, String menuName, BigDecimal amount, String kdsDeviceId,
+            Integer floor, String tableNo)
             throws Exception {
 
         var fields = new HashMap<String, Object>();
@@ -46,6 +47,12 @@ public class OrderClient {
         // valid case here — not an oversight to reject at this boundary.
         if (kdsDeviceId != null) {
             fields.put("kdsDeviceId", kdsDeviceId);
+        }
+        // 도착지. 테이블 QR로 들어온 주문에만 붙습니다 — 없으면 테이블이
+        // 아니라는 뜻이고, Order는 그것을 그대로 받아들입니다.
+        if (tableNo != null) {
+            fields.put("floor", floor);
+            fields.put("tableNo", tableNo);
         }
         String body = objectMapper.writeValueAsString(fields);
 

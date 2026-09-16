@@ -42,10 +42,13 @@ public class OrderChannelController {
 
     private final Catalog catalog;
     private final OrderClient orderClient;
+    private final com.sunmoon.channelorder.infrastructure.appserver.AppServerClient appServer;
 
-    public OrderChannelController(Catalog catalog, OrderClient orderClient) {
+    public OrderChannelController(Catalog catalog, OrderClient orderClient,
+            com.sunmoon.channelorder.infrastructure.appserver.AppServerClient appServer) {
         this.catalog = catalog;
         this.orderClient = orderClient;
+        this.appServer = appServer;
     }
 
     @PostMapping("/orders")
@@ -62,9 +65,27 @@ public class OrderChannelController {
 
         String customerId = "guest-" + randomId();
 
+        // 도착지는 서버가 붙입니다. 브라우저가 보낸 매장·자리를 믿으면,
+        // 값을 바꿔서 앉지도 않은 자리로 주문을 보낼 수 있고 QR의 요점이
+        // 사라집니다. 게이트를 다시 통과하는 김에 매장이 아직 영업 중인지도
+        // 한 번 더 봅니다 — 메뉴를 고르는 동안 마감했을 수 있습니다.
+        Integer floor = null;
+        String tableNo = null;
+        String storeId = request.storeId();
+        if (request.qrCode() != null && !request.qrCode().isBlank()) {
+            var table = appServer.resolveTable(request.qrCode());
+            if (table.isEmpty()) {
+                return badRequest("이 자리로는 지금 주문할 수 없습니다. 화면을 새로고침해주세요.");
+            }
+            storeId = table.get().storeId();
+            floor = table.get().floor();
+            tableNo = table.get().tableNo();
+        }
+
         try {
             var upstream = orderClient.placeOrder(
-                    request.storeId(), customerId, menu.get().name(), menu.get().price(), menu.get().kdsDeviceId());
+                    storeId, customerId, menu.get().name(), menu.get().price(), menu.get().kdsDeviceId(),
+                    floor, tableNo);
 
             // Order's answer is passed through unchanged, status included —
             // this channel has no opinion about whether the order is valid

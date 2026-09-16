@@ -90,11 +90,13 @@ export interface PlacedOrder {
 }
 
 /** storeId + menuId only — no free text ever leaves this app. */
-export async function placeOrder(storeId: string, menuId: string): Promise<PlacedOrder> {
+export async function placeOrder(storeId: string, menuId: string, qrCode?: string): Promise<PlacedOrder> {
   const res = await fetch(`${BASE}/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ storeId, menuId })
+    // 코드를 같이 보냅니다. 매장·자리를 화면이 정하지 않는다는 뜻입니다 —
+    // 서버가 코드를 다시 풀어서 도착지를 붙입니다.
+    body: JSON.stringify({ storeId, menuId, qrCode })
   })
   if (!res.ok) throw await failure(res)
   return (await res.json()) as PlacedOrder

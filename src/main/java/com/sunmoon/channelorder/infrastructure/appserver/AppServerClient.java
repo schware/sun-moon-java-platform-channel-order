@@ -28,6 +28,37 @@ public class AppServerClient {
         this.client = RestClient.builder().baseUrl(baseUrl).build();
     }
 
+    /** 게이트가 통과시킨 자리. 주문에 도착지를 붙일 때 쓰는 최소한만. */
+    public record TableEntry(String storeId, Integer floor, String tableNo) {
+    }
+
+    /**
+     * 주문을 넣기 직전에 코드를 다시 풉니다.
+     *
+     * <p>진입할 때 한 번 봤는데 또 보는 이유가 둘 있습니다. 하나는 손님이
+     * 메뉴를 고르는 동안 매장이 마감했을 수 있다는 것, 다른 하나는 브라우저가
+     * 보낸 값을 믿지 않기 위해서입니다 — 도착지는 서버가 붙입니다.
+     *
+     * <p>통과하지 못하면 {@code empty} 입니다. 왜 막혔는지는 여기서 다루지
+     * 않습니다 — 주문이 거절된 이유는 Order가 돌려주는 것으로 충분합니다.
+     */
+    public java.util.Optional<TableEntry> resolveTable(String qrCode) {
+        ResponseEntity<String> response = enterTable(qrCode);
+        if (!response.getStatusCode().is2xxSuccessful() || response.getBody() == null) {
+            return java.util.Optional.empty();
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode node =
+                    new com.fasterxml.jackson.databind.ObjectMapper().readTree(response.getBody());
+            return java.util.Optional.of(new TableEntry(
+                    node.path("storeId").asText(null),
+                    node.hasNonNull("floor") ? node.get("floor").asInt() : null,
+                    node.path("tableNo").asText(null)));
+        } catch (Exception e) {
+            return java.util.Optional.empty();
+        }
+    }
+
     /**
      * 게이트의 응답을 <b>상태 코드까지 그대로</b> 넘깁니다. 404/409/503이
      * 각각 다른 뜻이고 화면이 그걸로 갈라지는데, 여기서 200으로 뭉개면
