@@ -31,6 +31,15 @@ function qrCodeFromUrl(): string | null {
   return match ? decodeURIComponent(match[1]!) : null
 }
 
+/**
+ * 자리를 사람이 부르는 이름으로. 표시명이 없으면 테이블 번호가 이름인데,
+ * 그대로 쓰면 "1 자리로 가져다 드립니다"가 됩니다. 숫자뿐일 때만 "번"을
+ * 붙입니다 — "창가번"이 되면 안 되니까요.
+ */
+function tableName(entry: TableEntry): string {
+  return /^\d+$/.test(entry.tableLabel) ? entry.tableLabel + '번' : entry.tableLabel
+}
+
 type Gate =
   | { state: 'none' }
   | { state: 'checking' }
@@ -83,7 +92,7 @@ export default function App() {
         <header className="bar">
           <h1>{entry.storeName}</h1>
           <span className="table-badge">
-            {entry.floor > 1 ? entry.floor + '층 ' : ''}{entry.tableLabel}
+            {entry.floor > 1 ? entry.floor + '층 ' : ''}{tableName(entry)}
           </span>
         </header>
         <MenuList store={{ id: entry.storeId, name: entry.storeName }} table={entry} />
@@ -163,7 +172,7 @@ function MenuList({ store, table }: { store: Store; table?: TableEntry }) {
     <>
       <p className="muted lead">
         {table
-          ? <>주문하시면 <strong>{table.tableLabel}</strong> 자리로 가져다 드립니다.</>
+          ? <>주문하시면 <strong>{tableName(table)}</strong> 자리로 가져다 드립니다.</>
           : <><strong>{store.name}</strong>의 메뉴입니다. 메뉴를 고르면 확인 화면이 나옵니다.</>}
       </p>
 
