@@ -50,6 +50,13 @@ public class OrderChannelController {
             description = "APP-SERVER로 그대로 넘기고, 그 답을 상태 코드까지 그대로 돌려줍니다. "
                     + "매장·메뉴·결품 검증과 원장 기록은 전부 APP-SERVER가 합니다.")
     public ResponseEntity<?> placeOrder(@Valid @RequestBody PlaceOrderRequest request) {
+        if (!request.hasAnything()) {
+            // 아무것도 안 고른 주문. 여기서 막는 이유는 APP-SERVER 까지
+            // 왕복할 이유가 없어서이지, 검사를 여기서 한다는 뜻은
+            // 아닙니다 — 메뉴가 실제로 있는지는 저쪽이 봅니다.
+            return ResponseEntity.badRequest()
+                    .body(java.util.Map.of("error", "메뉴를 하나 이상 골라주세요"));
+        }
         // 상태 코드를 그대로 넘깁니다. 404/409/503 이 각각 다른 뜻이고
         // 화면이 그걸로 갈라지는데, 여기서 뭉개면 그 구분이 사라집니다.
         ResponseEntity<String> upstream = appServer.placeOrder(request);

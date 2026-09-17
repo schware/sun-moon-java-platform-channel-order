@@ -73,6 +73,54 @@ h1 { font-size: 20px; font-weight: 650; margin: 0; }
 .tile.menu .menu-name { font-size: 16px; }
 .tile.menu .menu-price { font-size: 13px; color: var(--muted); font-weight: 500; }
 
+/* 담은 개수 — 타일 모서리에 붙습니다.
+   장바구니를 열어야 알 수 있으면 손님은 같은 것을 또 담습니다. */
+.tile { position: relative; }
+.tile.in-cart { border-color: var(--accent); }
+.menu-count {
+  position: absolute; top: 8px; right: 8px;
+  min-width: 22px; height: 22px; line-height: 22px;
+  border-radius: 999px; background: var(--accent); color: #0b0d12;
+  font-size: 12.5px; font-weight: 800; text-align: center;
+}
+
+/* ---------- 장바구니 ----------
+   화면 아래에 붙여 둡니다. 따로 장바구니 화면으로 넘어가면 돌아오는
+   동작이 하나 더 생기고, 그 자리에서 "그만 시킬까" 하게 됩니다. */
+.cart {
+  position: sticky;
+  bottom: 0;
+  margin-top: 20px;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  border-radius: 14px;
+  padding: 12px 14px;
+  /* 목록 위에 겹쳐 뜨므로 그림자로 층을 만듭니다. */
+  box-shadow: 0 -8px 24px rgba(11, 13, 18, 0.75);
+}
+
+.cart-lines { list-style: none; margin: 0 0 10px; padding: 0; }
+.cart-lines li {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0; font-size: 14.5px;
+}
+.cart-lines li + li { border-top: 1px solid var(--border); }
+.cart-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cart-amount { color: var(--muted); font-size: 13.5px; min-width: 72px; text-align: right; }
+
+.cart-stepper { display: flex; align-items: center; gap: 4px; }
+.cart-qty { min-width: 24px; text-align: center; font-weight: 700; }
+/* 손가락으로 누르는 버튼입니다 — 44px 아래로 내려가면 옆 것이 눌립니다. */
+.btn.step {
+  width: 34px; height: 34px; padding: 0;
+  font-size: 18px; line-height: 1;
+  border-radius: 9px;
+}
+
+.cart-foot { display: flex; align-items: center; gap: 10px; }
+.cart-total { flex: 1; font-size: 14.5px; }
+.cart-foot .btn.primary { padding: 11px 18px; font-size: 15px; }
+
 .empty { color: var(--muted); text-align: center; padding: 40px 0; }
 
 .error, .notice {
@@ -124,6 +172,11 @@ h1 { font-size: 20px; font-weight: 650; margin: 0; }
 }
 .sheet-item .menu-name { font-size: 17px; font-weight: 650; }
 .sheet-item .menu-price { font-size: 15px; color: var(--muted); }
+/* 줄이 여럿일 때만 나오는 합계. 위 줄들과 붙여서 하나의 묶음으로
+   읽히도록 위 테두리를 지웁니다. */
+.sheet-item + .sheet-item { border-top: none; }
+.sheet-item.total .menu-name,
+.sheet-item.total .menu-price { color: var(--text); font-weight: 700; }
 
 .sheet-ask { font-size: 15.5px; margin: 18px 0; text-align: center; }
 

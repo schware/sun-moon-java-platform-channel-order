@@ -117,9 +117,23 @@ export interface PlacedOrder {
  * 호출하는 쪽에서 넘겨야 진짜 재시도에 같은 값이 갑니다 — 여기서
  * 만들면 이 함수를 다시 부르는 것이 곧 새 주문이 됩니다.
  */
+/** 장바구니 한 줄. **가격이 없습니다** — 아래 주석 참고. */
+export interface CartItem {
+  menuId: string
+  quantity: number
+}
+
+/**
+ * 장바구니를 주문으로 보냅니다.
+ *
+ * **가격을 안 보냅니다.** 화면이 보낸 값을 서버가 믿으면 손님이 값을
+ * 바꿔서 1원에 살 수 있습니다. 그리고 메뉴를 고르는 동안 가격이
+ * 바뀌었을 수도 있는데, 맞는 값은 접수되는 순간의 메뉴판 값입니다.
+ * 그래서 보내는 것은 **무엇을 몇 개**뿐입니다.
+ */
 export async function placeOrder(
   storeId: string,
-  menuId: string,
+  items: CartItem[],
   requestId: string,
   qrCode?: string
 ): Promise<PlacedOrder> {
@@ -128,7 +142,7 @@ export async function placeOrder(
     headers: { 'Content-Type': 'application/json' },
     // 코드를 같이 보냅니다. 매장·자리를 화면이 정하지 않는다는 뜻입니다 —
     // 서버가 코드를 다시 풀어서 도착지를 붙입니다.
-    body: JSON.stringify({ storeId, menuId, qrCode, requestId })
+    body: JSON.stringify({ storeId, items, qrCode, requestId })
   })
   if (!res.ok) throw await failure(res)
   return (await res.json()) as PlacedOrder

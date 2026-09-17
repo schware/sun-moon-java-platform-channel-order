@@ -150,11 +150,24 @@ function StoreList({ onPick }: { onPick: (store: Store) => void }) {
   )
 }
 
+/**
+ * 장바구니 한 줄 — 무엇을 몇 개.
+ *
+ * 메뉴 전체를 들고 있는 이유: 화면이 이름과 가격을 그려야 하고, 결품이
+ * 되면 그 줄을 짚어 말해줘야 합니다. **서버로 갈 때는 id와 수량만
+ * 갑니다** — 가격을 화면이 정하지 않습니다.
+ */
+interface CartLine {
+  menu: MenuItem
+  quantity: number
+}
+
 function MenuList({ store, table }: { store: Store; table?: TableEntry }) {
   const [menus, setMenus] = useState<MenuItem[]>([])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [checkingOut, setCheckingOut] = useState<MenuItem | null>(null)
+  const [cart, setCart] = useState<CartLine[]>([])
+  const [checkingOut, setCheckingOut] = useState<CartLine[] | null>(null)
   const [placed, setPlaced] = useState<PlacedOrder | null>(null)
 
   const load = useCallback(() => {
@@ -167,6 +180,42 @@ function MenuList({ store, table }: { store: Store; table?: TableEntry }) {
 
   useEffect(load, [load])
 
+  /**
+   * 담기 — 같은 메뉴를 또 담으면 수량이 늘어납니다.
+   *
+   * 줄을 따로 만들지 않는 이유: 지금은 줄마다 다르게 할 것이 없습니다.
+   * 옵션(맵게/안 맵게)이 생기는 날에는 줄을 갈라야 하고, 그때 서버는
+   * 이미 준비돼 있습니다 — 같은 메뉴 두 줄을 합치지 않습니다.
+   */
+  function add(menu: MenuItem) {
+    setPlaced(null)
+    setCart((current) => {
+      const found = current.find((line) => line.menu.id === menu.id)
+      if (found) {
+        return current.map((line) =>
+          line.menu.id === menu.id ? { ...line, quantity: line.quantity + 1 } : line)
+      }
+      return [...current, { menu, quantity: 1 }]
+    })
+  }
+
+  function setQuantity(menuId: string, quantity: number) {
+    setCart((current) => quantity <= 0
+      ? current.filter((line) => line.menu.id !== menuId)
+      : current.map((line) => line.menu.id === menuId ? { ...line, quantity } : line))
+  }
+
+  const total = cart.reduce((sum, line) => sum + line.menu.price * line.quantity, 0)
+  const count = cart.reduce((sum, line) => sum + line.quantity, 0)
+
+  // 여러 개를 한꺼번에 시키면 제일 오래 걸리는 것을 기다립니다.
+  // 더하면 안 됩니다 — 주방은 동시에 만듭니다.
+  const eta = cart.reduce<number | null>((longest, line) => {
+    const minutes = line.menu.estimatedMinutes
+    if (minutes === null) return longest
+    return longest === null || minutes > longest ? minutes : longest
+  }, null)
+
   if (loading) return <div className="empty">불러오는 중…</div>
 
   return (
@@ -174,7 +223,7 @@ function MenuList({ store, table }: { store: Store; table?: TableEntry }) {
       <p className="muted lead">
         {table
           ? <>주문하시면 <strong>{tableName(table)}</strong> 자리로 가져다 드립니다.</>
-          : <><strong>{store.name}</strong>의 메뉴입니다. 메뉴를 고르면 확인 화면이 나옵니다.</>}
+          : <><strong>{store.name}</strong>의 메뉴입니다. 담고 싶은 만큼 고르세요.</>}
       </p>
 
       {error && <div className="error" role="alert">{error}</div>}
@@ -197,33 +246,88 @@ function MenuList({ store, table }: { store: Store; table?: TableEntry }) {
       )}
 
       <div className="grid">
-        {menus.map((menu) => (
-          <button
-            key={menu.id}
-            className={`tile menu${menu.soldOut ? ' sold-out' : ''}`}
-            // 결품은 목록에 남되 눌리지 않습니다. 빼버리면 손님은 그
-            // 메뉴가 원래 없는 줄 알고, 매장에는 "왜 안 파냐"가 아니라
-            // "메뉴가 왜 없어졌냐"는 전화가 옵니다.
-            disabled={menu.soldOut}
-            onClick={() => { setPlaced(null); setCheckingOut(menu) }}
-          >
-            <span className="menu-name">{menu.name}</span>
-            <span className="menu-price">{formatAmount(menu.price)}</span>
-            {menu.soldOut
-              ? <span className="menu-flag">오늘 준비되지 않았습니다</span>
-              : menu.estimatedMinutes !== null
-                && <span className="menu-eta">약 {menu.estimatedMinutes}분</span>}
-          </button>
-        ))}
+        {menus.map((menu) => {
+          const inCart = cart.find((line) => line.menu.id === menu.id)
+          return (
+            <button
+              key={menu.id}
+              className={`tile menu${menu.soldOut ? ' sold-out' : ''}${inCart ? ' in-cart' : ''}`}
+              // 결품은 목록에 남되 눌리지 않습니다. 빼버리면 손님은 그
+              // 메뉴가 원래 없는 줄 알고, 매장에는 "왜 안 파냐"가 아니라
+              // "메뉴가 왜 없어졌냐"는 전화가 옵니다.
+              disabled={menu.soldOut}
+              onClick={() => add(menu)}
+            >
+              <span className="menu-name">{menu.name}</span>
+              <span className="menu-price">{formatAmount(menu.price)}</span>
+              {menu.soldOut
+                ? <span className="menu-flag">오늘 준비되지 않았습니다</span>
+                : menu.estimatedMinutes !== null
+                  && <span className="menu-eta">약 {menu.estimatedMinutes}분</span>}
+              {/* 몇 개 담았는지 타일 위에 바로 보입니다. 장바구니를 열어야
+                  알 수 있으면 손님은 같은 것을 또 담습니다. */}
+              {inCart && <span className="menu-count">{inCart.quantity}</span>}
+            </button>
+          )
+        })}
       </div>
+
+      {/*
+        담은 것을 화면 아래에 붙여 둡니다.
+
+        따로 장바구니 화면으로 넘어가지 않는 이유: 손님은 메뉴를 보면서
+        더 담습니다. 화면이 바뀌면 돌아오는 동작이 하나 더 생기고,
+        그 자리에서 "그만 시킬까" 하게 됩니다.
+      */}
+      {cart.length > 0 && (
+        <div className="cart">
+          <ul className="cart-lines">
+            {cart.map((line) => (
+              <li key={line.menu.id}>
+                <span className="cart-name">{line.menu.name}</span>
+                <span className="cart-stepper">
+                  <button
+                    className="btn step"
+                    aria-label={`${line.menu.name} 하나 빼기`}
+                    onClick={() => setQuantity(line.menu.id, line.quantity - 1)}
+                  >−</button>
+                  <span className="cart-qty">{line.quantity}</span>
+                  <button
+                    className="btn step"
+                    aria-label={`${line.menu.name} 하나 더`}
+                    onClick={() => setQuantity(line.menu.id, line.quantity + 1)}
+                  >+</button>
+                </span>
+                <span className="cart-amount">
+                  {formatAmount(line.menu.price * line.quantity)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="cart-foot">
+            <span className="cart-total">
+              {count}개 · <strong>{formatAmount(total)}</strong>
+              {eta !== null && <span className="muted"> · 약 {eta}분</span>}
+            </span>
+            <button className="btn primary" onClick={() => { setPlaced(null); setCheckingOut(cart) }}>
+              주문하기
+            </button>
+          </div>
+        </div>
+      )}
 
       {checkingOut && (
         <Checkout
           store={store}
-          menu={checkingOut}
+          lines={checkingOut}
           qrCode={table ? qrCodeFromUrl() ?? undefined : undefined}
           onClose={(order) => {
-            if (order) setPlaced(order)
+            if (order) {
+              setPlaced(order)
+              // 주문이 들어갔으면 장바구니를 비웁니다. 남겨 두면 다음
+              // 손님이(테이블 QR은 같은 화면입니다) 남의 것을 시킵니다.
+              setCart([])
+            }
             setCheckingOut(null)
           }}
         />
@@ -233,7 +337,7 @@ function MenuList({ store, table }: { store: Store; table?: TableEntry }) {
 }
 
 /**
- * The steps between "tapped a menu" and "order placed", in the order the
+ * The steps between "tapped 주문하기" and "order placed", in the order the
  * customer walks them.
  *
  * <p>A list rather than logic baked into {@link Checkout}, because this
@@ -255,11 +359,14 @@ type Phase =
   | { name: 'failed'; message: string }
 
 /**
- * The checkout sheet. One menu item for now — 장바구니 replaces
- * {@code menu} with a list, and nothing about the step machine changes.
+ * The checkout sheet — now a list of lines (2026-09-18).
+ *
+ * <p>The step machine did not change, which is what the earlier comment
+ * on {@link FLOW} predicted: 장바구니 replaced one menu with a list and
+ * nothing else moved.
  */
-function Checkout({ store, menu, qrCode, onClose }:
-  { store: Store; menu: MenuItem; qrCode?: string; onClose: (placed: PlacedOrder | null) => void }) {
+function Checkout({ store, lines, qrCode, onClose }:
+  { store: Store; lines: CartLine[]; qrCode?: string; onClose: (placed: PlacedOrder | null) => void }) {
   const [phase, setPhase] = useState<Phase>({ name: 'step', index: 0 })
   const step = phase.name === 'step' ? FLOW[phase.index] : undefined
 
@@ -267,6 +374,8 @@ function Checkout({ store, menu, qrCode, onClose }:
   // 보내야 서버가 두 번째를 같은 주문으로 알아보고, 주문이 둘이 되지
   // 않습니다 (업무 정의서 §4.4.6).
   const requestId = useMemo(newRequestId, [])
+
+  const total = lines.reduce((sum, line) => sum + line.menu.price * line.quantity, 0)
 
   async function advance() {
     if (phase.name !== 'step') return
@@ -286,12 +395,18 @@ function Checkout({ store, menu, qrCode, onClose }:
       // requestId 는 이 Checkout 이 열릴 때 한 번 만듭니다. 재시도가
       // 같은 값을 보내야 서버가 두 번째를 같은 주문으로 알아봅니다 —
       // 여기서 만들면 "다시 시도"가 곧 새 주문이 됩니다.
-      onClose(await placeOrder(store.id, menu.id, requestId, qrCode))
+      //
+      // 가격은 안 보냅니다. 서버가 메뉴판에서 다시 꺼냅니다.
+      onClose(await placeOrder(
+        store.id,
+        lines.map((line) => ({ menuId: line.menu.id, quantity: line.quantity })),
+        requestId,
+        qrCode))
     } catch (e) {
-      // A rejection here is Order's own state machine or the "no terminal
-      // at this store" rule speaking — not this channel's business to
-      // interpret further than showing what it said. Stays open so the
-      // customer can retry without picking the menu again.
+      // A rejection here is Order's own state machine, the "no terminal
+      // at this store" rule, or 결품 speaking — not this channel's
+      // business to interpret further than showing what it said. Stays
+      // open so the customer can retry without building the cart again.
       setPhase({ name: 'failed', message: e instanceof Error ? e.message : '주문을 넣지 못했습니다' })
     }
   }
@@ -306,14 +421,28 @@ function Checkout({ store, menu, qrCode, onClose }:
           )}
         </div>
 
-        <div className="sheet-item">
-          <span className="menu-name">{menu.name}</span>
-          <span className="menu-price">{formatAmount(menu.price)}</span>
-        </div>
+        {lines.map((line) => (
+          <div className="sheet-item" key={line.menu.id}>
+            <span className="menu-name">
+              {line.menu.name}
+              {/* 수량은 1일 때 안 씁니다 — "짜장면 x1"은 읽는 사람에게
+                  아무것도 더 말해주지 않습니다. */}
+              {line.quantity > 1 && <span className="muted"> × {line.quantity}</span>}
+            </span>
+            <span className="menu-price">{formatAmount(line.menu.price * line.quantity)}</span>
+          </div>
+        ))}
+
+        {lines.length > 1 && (
+          <div className="sheet-item total">
+            <span className="menu-name">합계</span>
+            <span className="menu-price">{formatAmount(total)}</span>
+          </div>
+        )}
 
         {phase.name === 'failed' && <div className="error" role="alert">{phase.message}</div>}
 
-        {step && <StepPanel step={step} menu={menu} />}
+        {step && <StepPanel step={step} lines={lines} />}
 
         <div className="sheet-actions">
           <button className="btn ghost" onClick={() => onClose(null)}
@@ -333,15 +462,24 @@ function Checkout({ store, menu, qrCode, onClose }:
 }
 
 /** One step's own content. A new step in {@link FLOW} gets a case here. */
-function StepPanel({ step, menu }: { step: StepName; menu: MenuItem }) {
+function StepPanel({ step, lines }: { step: StepName; lines: CartLine[] }) {
+  // 여러 개면 제일 오래 걸리는 것을 기다립니다 — 주방은 동시에 만듭니다.
+  const eta = lines.reduce<number | null>((longest, line) => {
+    const minutes = line.menu.estimatedMinutes
+    if (minutes === null) return longest
+    return longest === null || minutes > longest ? minutes : longest
+  }, null)
+
   switch (step) {
     case 'confirm':
       return (
         <>
-          <p className="sheet-ask">이 메뉴로 주문하시겠습니까?</p>
-          {menu.estimatedMinutes !== null && (
+          <p className="sheet-ask">
+            {lines.length === 1 ? '이 메뉴로 주문하시겠습니까?' : '이대로 주문하시겠습니까?'}
+          </p>
+          {eta !== null && (
             <p className="sheet-note">
-              지금 주문하시면 <strong>약 {menu.estimatedMinutes}분</strong> 걸립니다.
+              지금 주문하시면 <strong>약 {eta}분</strong> 걸립니다.
               앞의 주문에 따라 달라질 수 있습니다.
             </p>
           )}
