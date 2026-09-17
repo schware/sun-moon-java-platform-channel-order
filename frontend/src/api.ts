@@ -107,17 +107,38 @@ export interface PlacedOrder {
   pickupPin: string | null
 }
 
-/** storeId + menuId only — no free text ever leaves this app. */
-export async function placeOrder(storeId: string, menuId: string, qrCode?: string): Promise<PlacedOrder> {
+/**
+ * storeId + menuId only — no free text ever leaves this app.
+ *
+ * `requestId` 는 **화면이 만듭니다**. 손님이 버튼을 두 번 누르거나
+ * 네트워크 재시도가 겹쳐도 주문이 둘이 되지 않게 하는 값이라, 서버가
+ * 만들면 재시도마다 새 값이 되어 아무것도 막지 못합니다.
+ *
+ * 호출하는 쪽에서 넘겨야 진짜 재시도에 같은 값이 갑니다 — 여기서
+ * 만들면 이 함수를 다시 부르는 것이 곧 새 주문이 됩니다.
+ */
+export async function placeOrder(
+  storeId: string,
+  menuId: string,
+  requestId: string,
+  qrCode?: string
+): Promise<PlacedOrder> {
   const res = await fetch(`${BASE}/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // 코드를 같이 보냅니다. 매장·자리를 화면이 정하지 않는다는 뜻입니다 —
     // 서버가 코드를 다시 풀어서 도착지를 붙입니다.
-    body: JSON.stringify({ storeId, menuId, qrCode })
+    body: JSON.stringify({ storeId, menuId, qrCode, requestId })
   })
   if (!res.ok) throw await failure(res)
   return (await res.json()) as PlacedOrder
+}
+
+/** 이 브라우저에서 한 번만 쓰는 값. crypto.randomUUID 가 없는 곳도 있습니다. */
+export function newRequestId(): string {
+  const c = globalThis.crypto as { randomUUID?: () => string } | undefined
+  if (c?.randomUUID) return c.randomUUID()
+  return 'req-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10)
 }
 
 export function formatAmount(amount: number): string {

@@ -59,6 +59,35 @@ public class AppServerClient {
         }
     }
 
+    /**
+     * 주문을 APP-SERVER로 넘깁니다 (업무 정의서 §4.4.5).
+     *
+     * <p>이 서비스는 요청을 <b>해석하지 않습니다</b>. 매장·메뉴·결품
+     * 검증과 원장 기록은 원장을 가진 쪽의 일이고, 여기는 손님 화면을
+     * 내려준 창구일 뿐입니다.
+     *
+     * <p>응답은 <b>상태 코드까지 그대로</b> 넘깁니다. 404/409/503이
+     * 각각 다른 뜻이고 화면이 그걸로 갈라집니다.
+     */
+    public ResponseEntity<String> placeOrder(Object request) {
+        try {
+            return client.post()
+                    .uri("/orders")
+                    .header("Content-Type", "application/json")
+                    .body(request)
+                    .exchange((req, response) -> ResponseEntity
+                            .status(response.getStatusCode())
+                            .body(new String(response.getBody().readAllBytes(),
+                                    java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (RestClientException | java.io.UncheckedIOException e) {
+            // APP-SERVER 자체에 닿지 못한 것. 주문을 못 받은 것이지
+            // 거절된 것이 아니라 503 입니다 — 손님은 다시 눌러보면
+            // 될 수도 있습니다.
+            return ResponseEntity.status(503)
+                    .body("{\"reason\":\"OMS_UNREACHABLE\",\"message\":\"잠시 후 다시 시도해주세요.\"}");
+        }
+    }
+
     /** 오늘 이 매장에서 메뉴 하나가 처한 사정 — 없는지, 얼마나 기다리는지. */
     public record MenuStatus(boolean soldOut, Integer estimatedMinutes) {
     }

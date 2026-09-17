@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   enterTable,
   fetchMenus,
   fetchStores,
   formatAmount,
   isRefusal,
+  newRequestId,
   placeOrder,
   type MenuItem,
   type PlacedOrder,
@@ -262,6 +263,11 @@ function Checkout({ store, menu, qrCode, onClose }:
   const [phase, setPhase] = useState<Phase>({ name: 'step', index: 0 })
   const step = phase.name === 'step' ? FLOW[phase.index] : undefined
 
+  // 이 Checkout 이 열려 있는 동안 하나입니다. "다시 시도"가 같은 값을
+  // 보내야 서버가 두 번째를 같은 주문으로 알아보고, 주문이 둘이 되지
+  // 않습니다 (업무 정의서 §4.4.6).
+  const requestId = useMemo(newRequestId, [])
+
   async function advance() {
     if (phase.name !== 'step') return
     // Indexed rather than length-checked, so `noUncheckedIndexedAccess`
@@ -277,7 +283,10 @@ function Checkout({ store, menu, qrCode, onClose }:
       // Closes on success rather than showing a receipt of its own: the
       // confirmation belongs on the menu screen, where the customer can
       // see it while ordering the next thing.
-      onClose(await placeOrder(store.id, menu.id, qrCode))
+      // requestId 는 이 Checkout 이 열릴 때 한 번 만듭니다. 재시도가
+      // 같은 값을 보내야 서버가 두 번째를 같은 주문으로 알아봅니다 —
+      // 여기서 만들면 "다시 시도"가 곧 새 주문이 됩니다.
+      onClose(await placeOrder(store.id, menu.id, requestId, qrCode))
     } catch (e) {
       // A rejection here is Order's own state machine or the "no terminal
       // at this store" rule speaking — not this channel's business to

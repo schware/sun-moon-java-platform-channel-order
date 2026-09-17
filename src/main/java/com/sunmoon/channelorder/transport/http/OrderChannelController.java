@@ -1,17 +1,11 @@
 package com.sunmoon.channelorder.transport.http;
 
-import com.sunmoon.channelorder.domain.Catalog;
-import com.sunmoon.channelorder.domain.MenuItem;
 import com.sunmoon.channelorder.domain.PlaceOrderRequest;
-import com.sunmoon.channelorder.domain.Store;
-import com.sunmoon.channelorder.infrastructure.order.OrderClient;
+import com.sunmoon.channelorder.infrastructure.appserver.AppServerClient;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,112 +13,48 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.security.SecureRandom;
-import java.util.Map;
-import java.util.Optional;
-
 /**
- * The one action this channel offers: turn a (store, menu) button press
- * into a real order.
+ * 손님이 주문 버튼을 누르면 도착하는 자리 — 그리고 여기가 하는 일은
+ * <b>넘기는 것뿐입니다</b>.
  *
- * <p>There is no login and no free-text field, because there is no
- * customer account behind this channel — every order it can place is a
- * sample, by the same design decision the POS terminal documents. A
- * throwaway customer id is generated per order rather than asked for.
+ * <p>2026-09-17에 주문 처리가 APP-SERVER로 옮겨갔습니다 (업무 정의서
+ * §4.4, §4.5). 그 전에는 이 controller가 매장·메뉴·결품을 검증하고
+ * OMS로 직접 넣었는데, 그러면 <b>원장을 가진 쪽과 검증하는 쪽이
+ * 다릅니다</b>. 화면을 하나 더 붙이는 날 검증이 두 벌이 되고, 두 벌은
+ * 반드시 갈라집니다.
+ *
+ * <p>이제 흐름은 이렇습니다:
+ *
+ * <pre>
+ *   손님 화면 → channel-order → APP-SERVER → OMS → POS
+ * </pre>
+ *
+ * <p>브라우저가 APP-SERVER를 직접 부르지 않는 이유는 그대로입니다 —
+ * APP-SERVER는 LAN 전용이고, 손님 화면은 자기를 내려준 곳하고만
+ * 이야기합니다. 이 controller는 그 창구이고, 화면이 APP-SERVER로
+ * 옮겨가면 함께 사라집니다.
  */
 @RestController
 @RequestMapping("/api")
-@Tag(name = "Orders", description = "매장 + 메뉴 선택으로 주문 생성")
+@Tag(name = "Orders", description = "주문 접수 — APP-SERVER로 넘깁니다")
 public class OrderChannelController {
 
-    private static final Logger log = LoggerFactory.getLogger(OrderChannelController.class);
-    private static final SecureRandom RANDOM = new SecureRandom();
+    private final AppServerClient appServer;
 
-    private final Catalog catalog;
-    private final OrderClient orderClient;
-    private final com.sunmoon.channelorder.infrastructure.appserver.AppServerClient appServer;
-
-    public OrderChannelController(Catalog catalog, OrderClient orderClient,
-            com.sunmoon.channelorder.infrastructure.appserver.AppServerClient appServer) {
-        this.catalog = catalog;
-        this.orderClient = orderClient;
+    public OrderChannelController(AppServerClient appServer) {
         this.appServer = appServer;
     }
 
     @PostMapping("/orders")
-    @Operation(summary = "주문 생성", description = "storeId + menuId만 받는다. 금액은 카탈로그의 메뉴 가격에서 정해진다.")
+    @Operation(summary = "주문 생성",
+            description = "APP-SERVER로 그대로 넘기고, 그 답을 상태 코드까지 그대로 돌려줍니다. "
+                    + "매장·메뉴·결품 검증과 원장 기록은 전부 APP-SERVER가 합니다.")
     public ResponseEntity<?> placeOrder(@Valid @RequestBody PlaceOrderRequest request) {
-        Optional<Store> store = catalog.findStore(request.storeId());
-        if (store.isEmpty()) {
-            return badRequest("존재하지 않는 매장입니다: " + request.storeId());
-        }
-        Optional<MenuItem> menu = catalog.findMenu(request.menuId());
-        if (menu.isEmpty()) {
-            return badRequest("존재하지 않는 메뉴입니다: " + request.menuId());
-        }
-
-        String customerId = "guest-" + randomId();
-
-        // 도착지는 서버가 붙입니다. 브라우저가 보낸 매장·자리를 믿으면,
-        // 값을 바꿔서 앉지도 않은 자리로 주문을 보낼 수 있고 QR의 요점이
-        // 사라집니다. 게이트를 다시 통과하는 김에 매장이 아직 영업 중인지도
-        // 한 번 더 봅니다 — 메뉴를 고르는 동안 마감했을 수 있습니다.
-        Integer floor = null;
-        String tableNo = null;
-        String qrCode = null;
-        String storeId = request.storeId();
-        if (request.qrCode() != null && !request.qrCode().isBlank()) {
-            var table = appServer.resolveTable(request.qrCode());
-            if (table.isEmpty()) {
-                return badRequest("이 자리로는 지금 주문할 수 없습니다. 화면을 새로고침해주세요.");
-            }
-            storeId = table.get().storeId();
-            floor = table.get().floor();
-            tableNo = table.get().tableNo();
-            qrCode = request.qrCode();
-        }
-
-        // 결품이면 여기서 막습니다. 화면에서도 못 누르게 막혀 있지만,
-        // 손님이 메뉴를 보는 동안 떨어질 수 있고 화면은 그 순간을 모릅니다
-        // — 주문 직전에 한 번 더 보는 것이 그 창을 닫습니다.
-        //
-        // **게이트가 정해준 매장으로** 물어봅니다. 브라우저가 보낸 매장으로
-        // 물으면, 자리는 1호점인데 결품은 2호점 것을 보게 됩니다.
-        //
-        // APP-SERVER가 안 보이면 **통과시킵니다**. 확인할 수 없다고 모든
-        // 주문을 막으면 결품 표시 하나 때문에 장사가 멈추고, 그건 회복이
-        // 안 됩니다 — 반대로 결품인 줄 모르고 들어온 주문은 POS가 거절할
-        // 수 있습니다.
-        var status = appServer.menuStatuses(storeId).get(request.menuId());
-        if (status != null && status.soldOut()) {
-            return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body(Map.of("error", menu.get().name() + "은(는) 오늘 준비되지 않았습니다."));
-        }
-
-        try {
-            var upstream = orderClient.placeOrder(
-                    storeId, customerId, menu.get().name(), menu.get().price(), menu.get().kdsDeviceId(),
-                    floor, tableNo, qrCode);
-
-            // Order's answer is passed through unchanged, status included —
-            // this channel has no opinion about whether the order is valid
-            // beyond store/menu existing; the rest is Order's call.
-            return ResponseEntity.status(upstream.statusCode())
-                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                    .body(upstream.body());
-        } catch (Exception e) {
-            log.warn("Order service unreachable", e);
-            return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                    .body(Map.of("error", "주문 서비스에 연결할 수 없습니다"));
-        }
-    }
-
-    private static ResponseEntity<Map<String, String>> badRequest(String message) {
-        return ResponseEntity.badRequest().body(Map.of("error", message));
-    }
-
-    /** Short enough to read in a demo, random enough that two clicks don't collide. */
-    private static String randomId() {
-        return Long.toString(Math.abs(RANDOM.nextLong()), 36).substring(0, 6);
+        // 상태 코드를 그대로 넘깁니다. 404/409/503 이 각각 다른 뜻이고
+        // 화면이 그걸로 갈라지는데, 여기서 뭉개면 그 구분이 사라집니다.
+        ResponseEntity<String> upstream = appServer.placeOrder(request);
+        return ResponseEntity.status(upstream.getStatusCode())
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .body(upstream.getBody());
     }
 }
