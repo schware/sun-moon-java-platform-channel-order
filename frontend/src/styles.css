@@ -272,14 +272,15 @@ h1 { font-size: 20px; font-weight: 650; margin: 0; }
 .claim-number {
   text-align: center;
   padding: 1.5rem 1rem;
-  border: 2px solid #d0d0d0;
+  border: 1px solid var(--border);
+  background: var(--panel);
   border-radius: 12px;
   margin-bottom: 1rem;
 }
 .claim-number .claim-label {
   display: block;
   font-size: 0.85rem;
-  color: #666;
+  color: var(--muted);
   margin-bottom: 0.25rem;
 }
 .claim-number strong {
@@ -290,25 +291,32 @@ h1 { font-size: 20px; font-weight: 650; margin: 0; }
 /* 준비됐을 때만 색이 바뀝니다. 늘 색이 있으면 그 색이 아무것도
    말하지 않게 됩니다. */
 .claim-number.ready {
-  border-color: #1a7f37;
-  background: #eaf7ee;
+  border-color: var(--up);
+  background: rgba(62, 207, 142, 0.08);
 }
 .claim-state {
   text-align: center;
   padding: 0.75rem;
   border-radius: 8px;
-  background: #f3f4f6;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
   margin-bottom: 1rem;
 }
-.claim-state.ready { background: #eaf7ee; color: #12622a; font-weight: 600; }
-.claim-state.over { background: #f3f4f6; color: #666; }
+.claim-state.ready {
+  background: rgba(62, 207, 142, 0.08);
+  border-color: rgba(62, 207, 142, 0.25);
+  color: var(--up);
+  font-weight: 600;
+}
+.claim-state.over { color: var(--muted); }
 .claim-lines { list-style: none; padding: 0; margin: 0 0 0.75rem; }
 .claim-lines li {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.5rem 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
 }
 .claim-total {
   display: flex;
