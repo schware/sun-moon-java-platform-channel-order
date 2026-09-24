@@ -71,4 +71,27 @@ public class OrderClient {
 
         return http.send(request, HttpResponse.BodyHandlers.ofString());
     }
+
+    /**
+     * 영수증 QR이 들고 온 값으로 주문 상태를 물어봅니다
+     * (umbrella docs/adr/0007).
+     *
+     * <p>이 호출만 <b>APP-SERVER를 거치지 않고 OMS로 바로</b> 갑니다.
+     * 주문을 <i>만드는</i> 일은 원장을 가진 APP-SERVER 것이지만, 상태를
+     * <i>읽는</i> 것은 OMS가 답할 질문입니다 — 중간에 한 겹을 더 두면
+     * 같은 사실이 두 곳을 지나면서 늦어질 뿐, 아무것도 더 정확해지지
+     * 않습니다.
+     *
+     * <p>값은 주소에 들어가므로 인코딩합니다. 모양 검사는 OMS가 하고,
+     * 여기서 한 번 더 하지 않습니다 — 규칙이 두 곳에 있으면 갈라집니다.
+     */
+    public HttpResponse<String> claim(String token) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(
+                        URI.create(baseUrl + "/orders/claim/"
+                                + java.net.URLEncoder.encode(token, java.nio.charset.StandardCharsets.UTF_8)))
+                .timeout(Duration.ofSeconds(5))
+                .GET()
+                .build();
+        return http.send(request, HttpResponse.BodyHandlers.ofString());
+    }
 }

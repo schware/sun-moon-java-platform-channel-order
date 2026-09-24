@@ -26,5 +26,11 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
         registry.addViewController("/t/{qrCode}").setViewName("forward:/index.html");
+        // 영수증 QR (umbrella docs/adr/0007). 테이블 QR과 <b>다른
+        // 주소</b>인 이유는 가리키는 것이 다르기 때문입니다 — 저쪽은
+        // 자리를 가리키고 영원히 붙어 있고, 이쪽은 주문 한 건을
+        // 가리키고 그 주문이 끝나면 볼 것이 없습니다. 한 주소로 묶으면
+        // 수명이 다른 둘이 같은 규칙을 쓰게 됩니다.
+        registry.addViewController("/o/{claimToken}").setViewName("forward:/index.html");
     }
 }

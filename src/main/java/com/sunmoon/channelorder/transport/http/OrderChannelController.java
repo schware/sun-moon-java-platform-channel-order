@@ -2,12 +2,15 @@ package com.sunmoon.channelorder.transport.http;
 
 import com.sunmoon.channelorder.domain.PlaceOrderRequest;
 import com.sunmoon.channelorder.infrastructure.appserver.AppServerClient;
+import com.sunmoon.channelorder.infrastructure.order.OrderClient;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -40,9 +43,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderChannelController {
 
     private final AppServerClient appServer;
+    /** 주문 상태 조회만 이쪽으로 갑니다 — 읽는 질문은 OMS가 답합니다. */
+    private final OrderClient orders;
 
-    public OrderChannelController(AppServerClient appServer) {
+    public OrderChannelController(AppServerClient appServer, OrderClient orders) {
         this.appServer = appServer;
+        this.orders = orders;
     }
 
     @PostMapping("/orders")
@@ -63,5 +69,38 @@ public class OrderChannelController {
         return ResponseEntity.status(upstream.getStatusCode())
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .body(upstream.getBody());
+    }
+
+    /**
+     * 영수증 QR을 찍으면 오는 자리 (umbrella docs/adr/0007, 업무 정의서 §4.8).
+     *
+     * <p>설계서의 <b>주문 상태 조회</b>가 이제야 길을 얻었습니다. 그동안
+     * 못 만든 이유는 손님을 가리킬 방법이 없어서였습니다 — 로그인이
+     * 없고 회원번호도 없으니, 주문을 가리킬 수 있는 것이 아무것도
+     * 없었습니다. 영수증이 그 자리를 채웁니다: <b>종이가 곧 교환권</b>
+     * 입니다.
+     *
+     * <p>OMS가 404 를 주면 그대로 404 입니다. "값이 틀렸다"와 "그런
+     * 주문이 없다"를 나누지 않는 것은 저쪽의 결정이고, 여기서 다시
+     * 갈라 놓으면 그 결정이 무의미해집니다.
+     */
+    @GetMapping("/orders/claim/{token}")
+    @Operation(summary = "영수증 QR로 주문 상태 조회",
+            description = "인증이 없는 경로입니다. 값을 가진 사람이 곧 볼 자격이 있는 "
+                    + "사람이고, 그래서 돌려주는 것은 손님이 볼 것만입니다 — "
+                    + "수령번호 · 상태 · 품목 · 금액.")
+    public ResponseEntity<?> claim(@PathVariable String token) {
+        try {
+            var upstream = orders.claim(token);
+            return ResponseEntity.status(upstream.statusCode())
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body(upstream.body());
+        } catch (Exception unreachable) {
+            // 못 물어본 것과 없는 것은 다릅니다. 502 로 말해야 화면이
+            // "주문이 없습니다" 대신 "지금 확인할 수 없습니다" 라고
+            // 쓸 수 있습니다.
+            return ResponseEntity.status(org.springframework.http.HttpStatus.BAD_GATEWAY)
+                    .body(java.util.Map.of("error", "주문 서비스에 연결할 수 없습니다"));
+        }
     }
 }

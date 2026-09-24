@@ -158,3 +158,51 @@ export function newRequestId(): string {
 export function formatAmount(amount: number): string {
   return new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(amount)
 }
+
+/**
+ * 영수증 QR로 여는 주문 상태 (umbrella docs/adr/0007).
+ *
+ * <p>손님이 볼 것만 옵니다 — PIN도, 단말 이름도, 거래번호도 없습니다.
+ * 인증이 없는 경로라 값을 가진 사람이 곧 볼 자격이 있는 사람이고,
+ * 그래서 주소가 새 나가면 새 나가는 만큼이 화면에 있는 그대로입니다.
+ */
+export interface ClaimedOrder {
+  storeId: string
+  businessDate: string | null
+  status: string
+  /** 손님이 이 화면에서 제일 먼저 찾는 값 — "몇 번 부르나". */
+  pickupNo: string | null
+  summary: string | null
+  amount: number
+  lines: Array<{ menuName: string; quantity: number; lineAmount: number }>
+  type: string | null
+  placedAt: string
+  /** 번호를 부른 시각. 비어 있으면 아직 안 불렀습니다. */
+  calledAt: string | null
+}
+
+/** 없는 주문과 못 물어본 것을 <b>가르기 위해</b> 따로 던집니다. */
+export class Unreachable extends Error {}
+
+export async function fetchClaim(token: string): Promise<ClaimedOrder | null> {
+  const res = await fetch(`${BASE}/orders/claim/${encodeURIComponent(token)}`)
+  if (res.status === 404) return null
+  if (res.status === 502 || res.status === 503) {
+    throw new Unreachable('지금은 주문 상태를 확인할 수 없습니다')
+  }
+  if (!res.ok) throw await failure(res)
+  return (await res.json()) as ClaimedOrder
+}
+
+/** 손님에게 보여줄 말. 매장 안에서 쓰는 말과 다릅니다. */
+export const CLAIM_STATUS: Record<string, string> = {
+  PLACED: '주문이 접수되었습니다',
+  ACCEPTED: '매장이 주문을 확인했습니다',
+  REJECTED: '주문이 취소되었습니다',
+  EXPIRED: '주문이 시간 초과로 취소되었습니다',
+  CANCELLED: '주문이 취소되었습니다',
+  COOKING: '조리 중입니다',
+  PRODUCED: '준비되었습니다',
+  DELIVERING: '배달 중입니다',
+  COMPLETED: '전달이 완료되었습니다'
+}

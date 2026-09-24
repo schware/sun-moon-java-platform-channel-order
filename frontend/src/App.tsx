@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
+  CLAIM_STATUS,
   enterTable,
+  fetchClaim,
   fetchMenus,
   fetchStores,
   formatAmount,
   isRefusal,
   newRequestId,
   placeOrder,
+  Unreachable,
+  type ClaimedOrder,
   type MenuItem,
   type PlacedOrder,
   type Store,
@@ -32,6 +36,12 @@ function qrCodeFromUrl(): string | null {
   return match ? decodeURIComponent(match[1]!) : null
 }
 
+/** 주소가 /channel-order/o/{token} 이면 그 값. 영수증 QR입니다. */
+function claimTokenFromUrl(): string | null {
+  const match = window.location.pathname.match(/\/o\/([^/?#]+)\/?$/)
+  return match ? decodeURIComponent(match[1]!) : null
+}
+
 /**
  * 자리를 사람이 부르는 이름으로. 표시명이 없으면 테이블 번호가 이름인데,
  * 그대로 쓰면 "1 자리로 가져다 드립니다"가 됩니다. 숫자뿐일 때만 "번"을
@@ -48,6 +58,18 @@ type Gate =
   | { state: 'refused'; refusal: TableRefusal }
 
 export default function App() {
+  // 영수증 QR로 들어온 것은 **주문하러 온 것이 아닙니다**. 메뉴도 매장
+  // 선택도 필요 없고, 볼 것은 자기 주문 하나뿐입니다.
+  //
+  // **hook 보다 먼저 갈라집니다.** 아래 state 를 만든 다음에 여기서
+  // 돌아가면 렌더마다 부르는 hook 수가 달라지고, React 가 상태를
+  // 어긋나게 짚습니다. 주소는 이 창이 열릴 때 정해져서 중간에 바뀌지
+  // 않으므로, 갈라지는 자리는 맨 위가 맞습니다.
+  const claimToken = claimTokenFromUrl()
+  if (claimToken !== null) {
+    return <OrderStatus token={claimToken} />
+  }
+
   const [screen, setScreen] = useState<Screen>({ name: 'stores' })
   const [gate, setGate] = useState<Gate>(() =>
     qrCodeFromUrl() === null ? { state: 'none' } : { state: 'checking' })
@@ -486,4 +508,117 @@ function StepPanel({ step, lines }: { step: StepName; lines: CartLine[] }) {
         </>
       )
   }
+}
+
+/**
+ * 영수증 QR로 여는 화면 — 손님이 자기 주문 하나를 봅니다
+ * (umbrella docs/adr/0007, 업무 정의서 §4.8 주문 상태 조회).
+ *
+ * <p>설계서에 있었지만 만들지 못했던 화면입니다. 손님을 가리킬 방법이
+ * 없었기 때문입니다 — 로그인도 회원번호도 없으니 "누구의 주문"을 말할
+ * 수가 없었습니다. **종이 영수증이 그 자리를 채웁니다**: 가진 사람이
+ * 곧 그 주문의 사람입니다.
+ *
+ * <p>폴링합니다. 손님은 이 화면을 켜 두고 기다리고, 가장 중요한 변화는
+ * "준비됐습니다"인데 그건 매장이 정하는 것이라 이쪽에서 알 길이
+ * 폴링밖에 없습니다. 소켓을 쓰지 않는 이유: 손님은 수만 명이고 잠깐
+ * 왔다 갑니다 — 연결을 쥐는 것은 단말의 방식이지 손님의 방식이
+ * 아닙니다.
+ */
+function OrderStatus({ token }: { token: string }) {
+  const [order, setOrder] = useState<ClaimedOrder | null>(null)
+  const [state, setState] = useState<'loading' | 'ok' | 'missing' | 'unreachable'>('loading')
+
+  const load = useCallback(async () => {
+    try {
+      const found = await fetchClaim(token)
+      if (found === null) {
+        setState('missing')
+        return
+      }
+      setOrder(found)
+      setState('ok')
+    } catch (e) {
+      // 못 물어본 것과 없는 것은 다릅니다. 여기서 뭉개면 연결이 끊긴
+      // 손님에게 "그런 주문 없습니다"라고 말하게 됩니다.
+      setState(e instanceof Unreachable ? 'unreachable' : 'missing')
+    }
+  }, [token])
+
+  useEffect(() => {
+    void load()
+    const timer = window.setInterval(() => void load(), 10000)
+    return () => window.clearInterval(timer)
+  }, [load])
+
+  if (state === 'loading') {
+    return <div className="shell"><div className="empty">주문을 확인하는 중…</div></div>
+  }
+
+  if (state === 'unreachable') {
+    return (
+      <div className="shell">
+        <header className="bar"><h1>주문 확인</h1></header>
+        <div className="error" role="alert">지금은 주문 상태를 확인할 수 없습니다.</div>
+        <button className="btn primary" onClick={() => void load()}>다시 시도</button>
+      </div>
+    )
+  }
+
+  if (state === 'missing' || order === null) {
+    return (
+      <div className="shell">
+        <header className="bar"><h1>주문 확인</h1></header>
+        <div className="empty">
+          주문을 찾을 수 없습니다.<br />
+          영수증의 QR을 다시 찍어 주세요.
+        </div>
+      </div>
+    )
+  }
+
+  const ready = order.status === 'PRODUCED'
+  const over = order.status === 'REJECTED' || order.status === 'EXPIRED'
+    || order.status === 'CANCELLED' || order.status === 'COMPLETED'
+
+  return (
+    <div className="shell">
+      <header className="bar"><h1>주문 확인</h1></header>
+
+      {/* 수령번호가 제일 큽니다. 손님이 이 화면을 여는 이유의 대부분이
+          "내 번호가 몇 번이더라"입니다. */}
+      {order.pickupNo && (
+        <div className={ready ? 'claim-number ready' : 'claim-number'}>
+          <span className="claim-label">수령번호</span>
+          <strong>{order.pickupNo}</strong>
+        </div>
+      )}
+
+      <div className={ready ? 'claim-state ready' : over ? 'claim-state over' : 'claim-state'}
+           role="status">
+        {CLAIM_STATUS[order.status] ?? order.status}
+        {ready && order.calledAt && <div className="muted">번호가 불렸습니다 — 카운터로 오세요.</div>}
+      </div>
+
+      <ul className="claim-lines">
+        {order.lines.length > 0 ? order.lines.map((line, i) => (
+          <li key={i}>
+            <span>{line.menuName}</span>
+            <span className="muted">{line.quantity}개</span>
+            <span>{formatAmount(line.lineAmount)}</span>
+          </li>
+        )) : (
+          // 2026-09-18 이전 주문에는 줄이 없습니다. 그때는 주문 하나가
+          // 메뉴 하나였고, 그 이름이 요약에 그대로 있습니다.
+          <li><span>{order.summary}</span><span>{formatAmount(order.amount)}</span></li>
+        )}
+      </ul>
+
+      <div className="claim-total">
+        <span>합계</span><strong>{formatAmount(order.amount)}</strong>
+      </div>
+
+      {!over && <p className="muted">이 화면은 10초마다 저절로 새로고침됩니다.</p>}
+    </div>
+  )
 }

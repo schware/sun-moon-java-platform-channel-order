@@ -266,3 +266,53 @@ h1 { font-size: 20px; font-weight: 650; margin: 0; }
   font-size: 13px;
   line-height: 1.5;
 }
+
+/* 영수증 QR로 여는 주문 확인 화면 (umbrella docs/adr/0007).
+   수령번호가 제일 큽니다 — 손님이 이 화면을 여는 이유의 대부분입니다. */
+.claim-number {
+  text-align: center;
+  padding: 1.5rem 1rem;
+  border: 2px solid #d0d0d0;
+  border-radius: 12px;
+  margin-bottom: 1rem;
+}
+.claim-number .claim-label {
+  display: block;
+  font-size: 0.85rem;
+  color: #666;
+  margin-bottom: 0.25rem;
+}
+.claim-number strong {
+  font-size: 3rem;
+  line-height: 1.1;
+  letter-spacing: 0.05em;
+}
+/* 준비됐을 때만 색이 바뀝니다. 늘 색이 있으면 그 색이 아무것도
+   말하지 않게 됩니다. */
+.claim-number.ready {
+  border-color: #1a7f37;
+  background: #eaf7ee;
+}
+.claim-state {
+  text-align: center;
+  padding: 0.75rem;
+  border-radius: 8px;
+  background: #f3f4f6;
+  margin-bottom: 1rem;
+}
+.claim-state.ready { background: #eaf7ee; color: #12622a; font-weight: 600; }
+.claim-state.over { background: #f3f4f6; color: #666; }
+.claim-lines { list-style: none; padding: 0; margin: 0 0 0.75rem; }
+.claim-lines li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+.claim-total {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0 1rem;
+  font-size: 1.1rem;
+}
