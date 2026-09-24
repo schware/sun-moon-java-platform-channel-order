@@ -6,10 +6,15 @@ import {
   fetchMenus,
   fetchStores,
   formatAmount,
+  formatMemberNo,
   isRefusal,
+  issueMember,
   newRequestId,
   placeOrder,
+  rememberedMember,
+  rememberMember,
   Unreachable,
+  verifyMember,
   type ClaimedOrder,
   type MenuItem,
   type PlacedOrder,
@@ -397,6 +402,10 @@ function Checkout({ store, lines, qrCode, onClose }:
   // 않습니다 (업무 정의서 §4.4.6).
   const requestId = useMemo(newRequestId, [])
 
+  // 이 휴대폰이 기억하는 회원번호. 없으면 익명으로 주문합니다 — 번호는
+  // 자격이 아니라 편의라, 여기서 막지 않습니다.
+  const [memberNo, setMemberNo] = useState<string | null>(() => rememberedMember())
+
   const total = lines.reduce((sum, line) => sum + line.menu.price * line.quantity, 0)
 
   async function advance() {
@@ -423,7 +432,8 @@ function Checkout({ store, lines, qrCode, onClose }:
         store.id,
         lines.map((line) => ({ menuId: line.menu.id, quantity: line.quantity })),
         requestId,
-        qrCode))
+        qrCode,
+        memberNo ?? undefined))
     } catch (e) {
       // A rejection here is Order's own state machine, the "no terminal
       // at this store" rule, or 결품 speaking — not this channel's
@@ -465,6 +475,10 @@ function Checkout({ store, lines, qrCode, onClose }:
         {phase.name === 'failed' && <div className="error" role="alert">{phase.message}</div>}
 
         {step && <StepPanel step={step} lines={lines} />}
+        {/* 회원번호 (§4.1). FLOW 의 단계로 만들지 않은 이유: 이것은
+            거쳐야 하는 단계가 아니라 곁들여 두는 칸입니다. 단계로
+            두면 번호가 없는 손님도 한 번씩 눌러 넘겨야 합니다. */}
+        {step && <MemberField memberNo={memberNo} onChange={setMemberNo} />}
 
         <div className="sheet-actions">
           <button className="btn ghost" onClick={() => onClose(null)}
@@ -508,6 +522,97 @@ function StepPanel({ step, lines }: { step: StepName; lines: CartLine[] }) {
         </>
       )
   }
+}
+
+/**
+ * 회원번호 칸 (업무 정의서 §4.1).
+ *
+ * <p><b>가입이 아닙니다.</b> 아무것도 묻지 않고 번호 하나를 받습니다 —
+ * 이름도 전화번호도 없고, 있는 것은 열한 자리 숫자뿐입니다.
+ *
+ * <p>주문을 막지 않는 것이 이 칸의 규칙입니다. 번호가 없어도, 잘못
+ * 쳤어도 주문은 그대로 들어갑니다. 도우려고 넣은 값이 장사를 막으면
+ * 안 됩니다.
+ */
+function MemberField({ memberNo, onChange }:
+  { memberNo: string | null; onChange: (memberNo: string | null) => void }) {
+  const [typing, setTyping] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+
+  async function receive() {
+    setBusy(true)
+    setNote(null)
+    try {
+      const issued = await issueMember()
+      rememberMember(issued.memberNo)
+      onChange(issued.memberNo)
+    } catch {
+      // 번호를 못 받아도 주문은 됩니다.
+      setNote('지금은 번호를 받을 수 없습니다. 이대로 주문하셔도 됩니다.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function apply() {
+    const cleaned = draft.replace(/\D/g, '')
+    setBusy(true)
+    setNote(null)
+    try {
+      const found = await verifyMember(cleaned)
+      if (found === null) {
+        setNote('그런 번호가 없습니다. 다시 확인해 주세요.')
+        return
+      }
+      rememberMember(found.memberNo)
+      onChange(found.memberNo)
+      setTyping(false)
+      setDraft('')
+    } catch {
+      setNote('지금은 확인할 수 없습니다. 이대로 주문하셔도 됩니다.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (memberNo) {
+    return (
+      <p className="sheet-note member-row">
+        회원번호 <strong>{formatMemberNo(memberNo)}</strong>
+        <button className="btn link" onClick={() => { rememberMember(null); onChange(null) }}>
+          빼기
+        </button>
+      </p>
+    )
+  }
+
+  return (
+    <div className="sheet-note member-row">
+      {typing ? (
+        <>
+          <input
+            className="member-input"
+            inputMode="numeric"
+            autoFocus
+            placeholder="회원번호 11자리"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <button className="btn link" disabled={busy} onClick={() => void apply()}>확인</button>
+          <button className="btn link" onClick={() => { setTyping(false); setNote(null) }}>취소</button>
+        </>
+      ) : (
+        <>
+          <span className="muted">회원번호 없이도 주문됩니다.</span>
+          <button className="btn link" disabled={busy} onClick={() => void receive()}>번호 받기</button>
+          <button className="btn link" onClick={() => setTyping(true)}>번호 입력</button>
+        </>
+      )}
+      {note && <span className="muted member-note">{note}</span>}
+    </div>
+  )
 }
 
 /**

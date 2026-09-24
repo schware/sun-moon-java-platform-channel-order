@@ -34,6 +34,14 @@ class OrderChannelControllerTest {
     @MockBean
     private AppServerClient appServer;
 
+    /**
+     * 주문 상태 조회만 OMS 로 바로 갑니다 (2026-09-24). 이 시험들은
+     * 주문 접수 경로를 보는 것이라 쓰이지 않지만, slice 가 controller 의
+     * 생성자를 채워야 해서 목이 필요합니다.
+     */
+    @MockBean
+    private com.sunmoon.channelorder.infrastructure.order.OrderClient orders;
+
     private static final String REQUEST = """
             {"storeId":"store-01","menuId":"menu-01","requestId":"req-1"}
             """;

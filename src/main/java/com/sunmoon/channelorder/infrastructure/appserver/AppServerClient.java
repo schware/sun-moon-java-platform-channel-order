@@ -88,6 +88,41 @@ public class AppServerClient {
         }
     }
 
+    /**
+     * 회원번호를 하나 내려받습니다 (업무 정의서 §4.1).
+     *
+     * <p>브라우저가 APP-SERVER를 직접 못 부르는 이유는 그대로입니다 —
+     * LAN 전용이고, 손님 화면은 자기를 내려준 곳하고만 이야기합니다.
+     */
+    public ResponseEntity<String> issueMember() {
+        return relay(() -> client.post().uri("/members").retrieve());
+    }
+
+    /** 우리가 준 번호인지 물어봅니다. 404 면 모르는 번호입니다. */
+    public ResponseEntity<String> verifyMember(String memberNo) {
+        return relay(() -> client.get()
+                .uri(uriBuilder -> uriBuilder.path("/members/{no}").build(memberNo))
+                .retrieve());
+    }
+
+    /**
+     * 답을 <b>상태 코드까지 그대로</b> 넘기고, 못 닿은 것만 503 으로
+     * 바꿉니다. 못 물어본 것과 없는 것은 다른 일이라, 화면이 "모르는
+     * 번호입니다"와 "지금은 확인할 수 없습니다"를 다르게 쓸 수 있어야
+     * 합니다.
+     */
+    private ResponseEntity<String> relay(java.util.function.Supplier<RestClient.ResponseSpec> call) {
+        try {
+            return call.get()
+                    .onStatus(status -> true, (req, res) -> {
+                    })
+                    .toEntity(String.class);
+        } catch (RestClientException | java.io.UncheckedIOException e) {
+            return ResponseEntity.status(503)
+                    .body("{\"error\":\"지금은 확인할 수 없습니다\"}");
+        }
+    }
+
     /** 오늘 이 매장에서 메뉴 하나가 처한 사정 — 없는지, 얼마나 기다리는지. */
     public record MenuStatus(boolean soldOut, Integer estimatedMinutes) {
     }

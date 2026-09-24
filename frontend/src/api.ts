@@ -135,17 +135,77 @@ export async function placeOrder(
   storeId: string,
   items: CartItem[],
   requestId: string,
-  qrCode?: string
+  qrCode?: string,
+  memberNo?: string
 ): Promise<PlacedOrder> {
   const res = await fetch(`${BASE}/orders`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     // 코드를 같이 보냅니다. 매장·자리를 화면이 정하지 않는다는 뜻입니다 —
     // 서버가 코드를 다시 풀어서 도착지를 붙입니다.
-    body: JSON.stringify({ storeId, items, qrCode, requestId })
+    body: JSON.stringify({ storeId, items, qrCode, memberNo, requestId })
   })
   if (!res.ok) throw await failure(res)
   return (await res.json()) as PlacedOrder
+}
+
+/**
+ * 회원번호 (업무 정의서 §4.1).
+ *
+ * <b>가입이 아닙니다.</b> 아무것도 묻지 않고 번호 하나를 받습니다 —
+ * 이름도 전화번호도 없습니다. 손님은 그 번호를 적어 두었다가 다음에
+ * 칩니다.
+ */
+export interface IssuedMember {
+  memberNo: string
+  issuedAt: string
+}
+
+export async function issueMember(): Promise<IssuedMember> {
+  const res = await fetch(`${BASE}/members`, { method: 'POST' })
+  if (!res.ok) throw await failure(res)
+  return (await res.json()) as IssuedMember
+}
+
+/** 우리가 준 번호인가. null 은 모르는 번호입니다. */
+export async function verifyMember(memberNo: string): Promise<IssuedMember | null> {
+  const res = await fetch(`${BASE}/members/${encodeURIComponent(memberNo)}`)
+  if (res.status === 404) return null
+  if (!res.ok) throw await failure(res)
+  return (await res.json()) as IssuedMember
+}
+
+/**
+ * 이 휴대폰이 기억하는 회원번호.
+ *
+ * <b>손님 자기 기기라 localStorage 가 맞는 자리입니다.</b> 개인정보가
+ * 아니고(이름도 전화번호도 없는 열한 자리 숫자입니다), 지워져도 번호를
+ * 다시 받으면 그만입니다 — 잃으면 지난 주문과의 연결만 끊깁니다.
+ */
+const MEMBER_KEY = 'memberNo'
+
+export function rememberedMember(): string | null {
+  try {
+    return localStorage.getItem(MEMBER_KEY)
+  } catch {
+    return null // 시크릿 창 등
+  }
+}
+
+export function rememberMember(memberNo: string | null): void {
+  try {
+    if (memberNo === null) localStorage.removeItem(MEMBER_KEY)
+    else localStorage.setItem(MEMBER_KEY, memberNo)
+  } catch {
+    // 못 적어도 이번 주문에는 씁니다. 다음에 다시 칠 뿐입니다.
+  }
+}
+
+/** 손님에게 보여줄 때만 띄어 씁니다 — 열한 자리를 한 덩어리로 두면 못 읽습니다. */
+export function formatMemberNo(memberNo: string): string {
+  return memberNo.length === 11
+    ? `${memberNo.slice(0, 6)} ${memberNo.slice(6, 10)} ${memberNo.slice(10)}`
+    : memberNo
 }
 
 /** 이 브라우저에서 한 번만 쓰는 값. crypto.randomUUID 가 없는 곳도 있습니다. */

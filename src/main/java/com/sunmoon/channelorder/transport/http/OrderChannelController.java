@@ -84,6 +84,34 @@ public class OrderChannelController {
      * 주문이 없다"를 나누지 않는 것은 저쪽의 결정이고, 여기서 다시
      * 갈라 놓으면 그 결정이 무의미해집니다.
      */
+    /**
+     * 회원번호를 하나 받습니다 (업무 정의서 §4.1).
+     *
+     * <p>설계서의 "사용자정보 등록(숫자)"입니다. <b>가입이 아닙니다</b> —
+     * 아무것도 묻지 않고 번호만 내줍니다. 전화번호를 안 받는 것은
+     * 개인정보이기 때문이고, 가입을 안 만드는 것은 필요한 것에 비해
+     * 크기 때문입니다.
+     */
+    @PostMapping("/members")
+    @Operation(summary = "회원번호 발급",
+            description = "아무것도 묻지 않고 번호 하나를 냅니다. "
+                    + "손님은 적어 두었다가 다음에 칩니다.")
+    public ResponseEntity<?> issueMember() {
+        var upstream = appServer.issueMember();
+        return ResponseEntity.status(upstream.getStatusCode())
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .body(upstream.getBody());
+    }
+
+    @GetMapping("/members/{memberNo}")
+    @Operation(summary = "회원번호 확인", description = "우리가 준 번호인지 봅니다.")
+    public ResponseEntity<?> verifyMember(@PathVariable String memberNo) {
+        var upstream = appServer.verifyMember(memberNo);
+        return ResponseEntity.status(upstream.getStatusCode())
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .body(upstream.getBody());
+    }
+
     @GetMapping("/orders/claim/{token}")
     @Operation(summary = "영수증 QR로 주문 상태 조회",
             description = "인증이 없는 경로입니다. 값을 가진 사람이 곧 볼 자격이 있는 "
