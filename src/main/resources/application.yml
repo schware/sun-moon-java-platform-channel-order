@@ -25,3 +25,7 @@ order-channel:
   # 부르지 않는 이유: APP-SERVER는 LAN 전용이고, 공개해도 origin이 달라져
   # CORS가 필요해집니다. 손님 화면은 자기를 내려준 곳하고만 이야기합니다.
   app-server-url: ${APP_SERVER_URL:http://localhost:8086/app-server}
+
+# 손님 앱(Capacitor)의 출처 — CORS 허용 목록 (CorsConfig). '*' 는 무시됩니다.
+app:
+  cors-origins: ${APP_CORS_ORIGINS:https://localhost,capacitor://localhost}
