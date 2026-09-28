@@ -5,7 +5,9 @@
 
 import { memberToken, rememberMemberToken } from './platform/storage'
 
-const BASE = '/channel-order/api'
+import { API_BASE } from './platform/api'
+
+const BASE = API_BASE
 
 export interface Store {
   id: string
