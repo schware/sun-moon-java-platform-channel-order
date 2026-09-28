@@ -96,8 +96,54 @@ public class OrderChannelController {
     @Operation(summary = "회원번호 발급",
             description = "아무것도 묻지 않고 번호 하나를 냅니다. "
                     + "손님은 적어 두었다가 다음에 칩니다.")
-    public ResponseEntity<?> issueMember() {
-        var upstream = appServer.issueMember();
+    public ResponseEntity<?> issueMember(
+            @org.springframework.web.bind.annotation.RequestBody(required = false) String body) {
+        var upstream = appServer.issueMember(body);
+        return ResponseEntity.status(upstream.getStatusCode())
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                .body(upstream.getBody());
+    }
+
+    @PostMapping("/members/link")
+    @Operation(summary = "영수증으로 새 기기 연결",
+            description = "{memberNo, claimToken, platform}. 그 번호로 주문한 영수증을 가진 사람이 곧 그 번호의 사람.")
+    public ResponseEntity<?> linkMember(@org.springframework.web.bind.annotation.RequestBody(required = false) String body) {
+        return json(appServer.linkMember(body));
+    }
+
+    @GetMapping("/members/me")
+    @Operation(summary = "이 기기의 회원번호", description = "Authorization: Member <token> 을 그대로 넘깁니다.")
+    public ResponseEntity<?> me(@org.springframework.web.bind.annotation.RequestHeader(
+            value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return json(appServer.me(authorization));
+    }
+
+    @GetMapping("/members/me/orders")
+    @Operation(summary = "내 주문", description = "회원 토큰이 있는 기기만.")
+    public ResponseEntity<?> myOrders(
+            @org.springframework.web.bind.annotation.RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false)
+            String authorization,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "30") int limit) {
+        return json(appServer.myOrders(authorization, limit));
+    }
+
+    @PostMapping("/members/me/logout")
+    @Operation(summary = "이 기기에서 빼기")
+    public ResponseEntity<?> logout(@org.springframework.web.bind.annotation.RequestHeader(
+            value = HttpHeaders.AUTHORIZATION, required = false) String authorization) {
+        return json(appServer.logout(authorization));
+    }
+
+    @PostMapping("/members/me/push-token")
+    @Operation(summary = "푸시 토큰 등록 (앱)")
+    public ResponseEntity<?> pushToken(
+            @org.springframework.web.bind.annotation.RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false)
+            String authorization,
+            @org.springframework.web.bind.annotation.RequestBody(required = false) String body) {
+        return json(appServer.pushToken(authorization, body));
+    }
+
+    private static ResponseEntity<?> json(ResponseEntity<String> upstream) {
         return ResponseEntity.status(upstream.getStatusCode())
                 .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                 .body(upstream.getBody());

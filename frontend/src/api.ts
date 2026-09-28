@@ -3,6 +3,8 @@
  * /channel-order context-path the backend is served from.
  */
 
+import { memberToken, rememberMemberToken } from './platform/storage'
+
 const BASE = '/channel-order/api'
 
 export interface Store {
@@ -159,12 +161,78 @@ export async function placeOrder(
 export interface IssuedMember {
   memberNo: string
   issuedAt: string
+  /** 이 기기가 이력을 볼 자격 (customer-app §3). 번호를 새로 받을 때만 옵니다. */
+  memberToken?: string
 }
 
 export async function issueMember(): Promise<IssuedMember> {
-  const res = await fetch(`${BASE}/members`, { method: 'POST' })
+  const res = await fetch(`${BASE}/members`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ platform: 'WEB' })
+  })
   if (!res.ok) throw await failure(res)
-  return (await res.json()) as IssuedMember
+  const issued = (await res.json()) as IssuedMember
+  if (issued.memberToken) rememberMemberToken(issued.memberToken)
+  return issued
+}
+
+/** 회원 토큰이 필요한 요청. 토큰은 이 창구를 그대로 지나 APP-SERVER 가 확인합니다. */
+function withMember(init?: RequestInit): RequestInit {
+  const token = memberToken()
+  const headers = new Headers(init?.headers)
+  if (token) headers.set('Authorization', `Member ${token}`)
+  return { ...init, headers }
+}
+
+export interface MyOrder {
+  orderNo: string
+  storeId: string
+  businessDate: string
+  summary: string | null
+  amount: number
+  status: string
+  pickupNo: string | null
+  claimToken: string | null
+  placedAt: string
+}
+
+/** 내 주문. 토큰이 없거나 끝났으면 null — 화면이 "연결" 을 권합니다. */
+export async function fetchMyOrders(): Promise<MyOrder[] | null> {
+  if (!memberToken()) return null
+  const res = await fetch(`${BASE}/members/me/orders?limit=30`, withMember())
+  if (res.status === 401) {
+    rememberMemberToken(null)
+    return null
+  }
+  if (!res.ok) throw await failure(res)
+  return (await res.json()) as MyOrder[]
+}
+
+/**
+ * 영수증으로 이 기기를 연결합니다 (§3.2). 그 번호로 주문한 영수증을 가진 사람이 곧 그 번호의
+ * 사람입니다. 맞으면 토큰을 보관하고 참.
+ */
+export async function linkMember(memberNo: string, claimToken: string): Promise<boolean> {
+  const res = await fetch(`${BASE}/members/link`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ memberNo: memberNo.replace(/\D/g, ''), claimToken, platform: 'WEB' })
+  })
+  if (res.status === 404) return false
+  if (!res.ok) throw await failure(res)
+  const body = (await res.json()) as { memberToken: string }
+  rememberMemberToken(body.memberToken)
+  rememberMember(memberNo.replace(/\D/g, ''))
+  return true
+}
+
+/** 이 기기에서 빼기 — 번호와 다른 기기는 그대로. */
+export async function logoutMember(): Promise<void> {
+  if (memberToken()) {
+    await fetch(`${BASE}/members/me/logout`, withMember({ method: 'POST' })).catch(() => undefined)
+  }
+  rememberMemberToken(null)
 }
 
 /** 우리가 준 번호인가. null 은 모르는 번호입니다. */

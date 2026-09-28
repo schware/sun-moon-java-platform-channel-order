@@ -4,6 +4,9 @@ import {
   enterTable,
   fetchClaim,
   fetchMenus,
+  fetchMyOrders,
+  linkMember,
+  logoutMember,
   fetchStores,
   formatAmount,
   formatMemberNo,
@@ -17,6 +20,7 @@ import {
   verifyMember,
   type ClaimedOrder,
   type MenuItem,
+  type MyOrder,
   type PlacedOrder,
   type Store,
   type TableEntry,
@@ -24,6 +28,7 @@ import {
 } from './api'
 import Kiosk from './kiosk/Kiosk'
 import { kind } from './platform'
+import { memberToken } from './platform/storage'
 
 /**
  * 두 가지 방법으로 들어옵니다.
@@ -35,7 +40,7 @@ import { kind } from './platform'
  * 뒤로는 예전처럼 state로만 움직입니다 — 진입 지점이 하나 생긴 것이지
  * 경로가 생긴 것은 아닙니다.
  */
-type Screen = { name: 'stores' } | { name: 'menus'; store: Store }
+type Screen = { name: 'stores' } | { name: 'menus'; store: Store } | { name: 'mine' }
 
 /** 주소가 /channel-order/t/{code} 면 그 코드. 아니면 null. */
 function qrCodeFromUrl(): string | null {
@@ -140,19 +145,78 @@ export default function App() {
     <div className="shell">
       <header className="bar">
         <h1>주문 채널</h1>
-        {screen.name === 'menus' && (
+        {screen.name !== 'stores' && (
           <button className="btn link" onClick={() => setScreen({ name: 'stores' })}>
             ← 매장 다시 선택
           </button>
+        )}
+        {/* 이력은 회원 토큰이 있는 기기에서만 (customer-app §3) — 번호만으로는 안 보입니다. */}
+        {screen.name === 'stores' && memberToken() && (
+          <button className="btn link" onClick={() => setScreen({ name: 'mine' })}>내 주문</button>
         )}
       </header>
 
       {screen.name === 'stores' ? (
         <StoreList onPick={(store) => setScreen({ name: 'menus', store })} />
+      ) : screen.name === 'mine' ? (
+        <MyOrders onBack={() => setScreen({ name: 'stores' })} />
       ) : (
         <MenuList store={screen.store} />
       )}
     </div>
+  )
+}
+
+/**
+ * 내 주문 (customer-app §3.5) — 이 기기에 회원 토큰이 있을 때만. 누르면 그 주문의 영수증 화면
+ * (주문 상태)으로 갑니다.
+ */
+function MyOrders({ onBack }: { onBack: () => void }) {
+  const [orders, setOrders] = useState<MyOrder[] | null | undefined>(undefined)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchMyOrders().then(setOrders).catch((e) => setError(e instanceof Error ? e.message : '불러오지 못했습니다'))
+  }, [])
+
+  if (error) return <div className="error" role="alert">{error}</div>
+  if (orders === undefined) return <div className="empty">불러오는 중…</div>
+  if (orders === null) {
+    return (
+      <div className="empty">
+        이 기기는 회원번호에 연결되어 있지 않습니다.<br />
+        그 번호로 주문한 <strong>영수증의 QR</strong> 을 찍으면 연결할 수 있습니다.
+      </div>
+    )
+  }
+  return (
+    <>
+      {orders.length === 0 ? (
+        <div className="empty">아직 주문이 없습니다.</div>
+      ) : (
+        <ul className="claim-lines my-orders">
+          {orders.map((o) => (
+            <li key={o.orderNo}>
+              {o.claimToken ? (
+                <a href={`/channel-order/o/${encodeURIComponent(o.claimToken)}`}>
+                  {o.businessDate} · {o.summary ?? o.orderNo}
+                </a>
+              ) : (
+                <span>{o.businessDate} · {o.summary ?? o.orderNo}</span>
+              )}
+              <span className="muted">{CLAIM_STATUS[o.status] ?? o.status}</span>
+              <span>{formatAmount(o.amount)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="muted">
+        <button className="btn link" onClick={() => { void logoutMember().then(onBack) }}>
+          이 기기에서 빼기
+        </button>
+        (번호와 다른 기기는 그대로입니다)
+      </p>
+    </>
   )
 }
 
@@ -732,6 +796,52 @@ function OrderStatus({ token }: { token: string }) {
       </div>
 
       {!over && <p className="muted">이 화면은 10초마다 저절로 새로고침됩니다.</p>}
+
+      {/* 이 영수증으로 이 기기를 회원번호에 연결 (customer-app §3.2) — 새 휴대폰에서 이력을 보려면. */}
+      {!memberToken() && <LinkByReceipt token={token} />}
+    </div>
+  )
+}
+
+/**
+ * 영수증으로 기기 연결 (customer-app §3.2). 그 번호로 주문한 영수증을 가진 사람이 곧 그 번호의
+ * 사람이라, 번호를 넣으면 서버가 이 영수증의 손님과 맞는지 봅니다.
+ */
+function LinkByReceipt({ token }: { token: string }) {
+  const [open, setOpen] = useState(false)
+  const [memberNo, setMemberNo] = useState('')
+  const [state, setState] = useState<'idle' | 'busy' | 'linked' | 'wrong' | 'error'>('idle')
+
+  async function link() {
+    setState('busy')
+    try {
+      setState(await linkMember(memberNo, token) ? 'linked' : 'wrong')
+    } catch {
+      setState('error')
+    }
+  }
+
+  if (state === 'linked') {
+    return (
+      <p className="notice" role="status">
+        이 기기가 연결됐습니다. <a href="/channel-order/">주문 채널</a> 의 <strong>내 주문</strong> 에서 지난 주문을 볼 수 있습니다.
+      </p>
+    )
+  }
+  if (!open) {
+    return (
+      <p className="muted">
+        회원번호가 있으세요? <button className="btn link" onClick={() => setOpen(true)}>이 기기에서 내 주문 보기</button>
+      </p>
+    )
+  }
+  return (
+    <div className="member-row">
+      <input className="member-input" inputMode="numeric" placeholder="회원번호 11자리"
+             value={memberNo} onChange={(e) => setMemberNo(e.target.value)} />
+      <button className="btn link" disabled={state === 'busy'} onClick={() => void link()}>연결</button>
+      {state === 'wrong' && <span className="muted member-note">이 영수증의 번호가 아닙니다.</span>}
+      {state === 'error' && <span className="muted member-note">지금은 연결할 수 없습니다.</span>}
     </div>
   )
 }

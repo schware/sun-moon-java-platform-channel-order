@@ -95,7 +95,55 @@ public class AppServerClient {
      * LAN 전용이고, 손님 화면은 자기를 내려준 곳하고만 이야기합니다.
      */
     public ResponseEntity<String> issueMember() {
-        return relay(() -> client.post().uri("/members").retrieve());
+        return issueMember(null);
+    }
+
+    /** 번호와 이 기기의 회원 토큰 (customer-app §3.4). 본문 {@code {platform}} 을 그대로. */
+    public ResponseEntity<String> issueMember(String jsonBody) {
+        return relay(() -> client.post().uri("/members")
+                .header("Content-Type", "application/json")
+                .body(jsonBody == null || jsonBody.isBlank() ? "{}" : jsonBody)
+                .retrieve());
+    }
+
+    /** 영수증으로 새 기기 연결 — 본문 그대로. */
+    public ResponseEntity<String> linkMember(String jsonBody) {
+        return relay(() -> client.post().uri("/members/link")
+                .header("Content-Type", "application/json")
+                .body(jsonBody == null ? "{}" : jsonBody)
+                .retrieve());
+    }
+
+    /**
+     * 회원 토큰이 필요한 주소들 — {@code Authorization} 을 그대로 넘깁니다. 이 창구는 토큰을
+     * 보지도 기억하지도 않습니다(확인은 APP-SERVER 가).
+     */
+    public ResponseEntity<String> me(String authorization) {
+        return relay(() -> client.get().uri("/members/me").headers(h -> auth(h, authorization)).retrieve());
+    }
+
+    public ResponseEntity<String> myOrders(String authorization, int limit) {
+        return relay(() -> client.get()
+                .uri(uriBuilder -> uriBuilder.path("/members/me/orders").queryParam("limit", limit).build())
+                .headers(h -> auth(h, authorization)).retrieve());
+    }
+
+    public ResponseEntity<String> logout(String authorization) {
+        return relay(() -> client.post().uri("/members/me/logout").headers(h -> auth(h, authorization)).retrieve());
+    }
+
+    public ResponseEntity<String> pushToken(String authorization, String jsonBody) {
+        return relay(() -> client.post().uri("/members/me/push-token")
+                .headers(h -> auth(h, authorization))
+                .header("Content-Type", "application/json")
+                .body(jsonBody == null ? "{}" : jsonBody)
+                .retrieve());
+    }
+
+    private static void auth(org.springframework.http.HttpHeaders headers, String authorization) {
+        if (authorization != null && !authorization.isBlank()) {
+            headers.set("Authorization", authorization);
+        }
     }
 
     /** 우리가 준 번호인지 물어봅니다. 404 면 모르는 번호입니다. */
