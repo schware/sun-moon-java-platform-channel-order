@@ -344,3 +344,13 @@ h1 { font-size: 20px; font-weight: 650; margin: 0; }
   flex-basis: 100%;
   font-size: 0.85rem;
 }
+
+/* KIOSK (store-app.md §9) — 큰 터치 크기. 웹·앱에는 영향이 없습니다(data-kind 가 있을 때만). */
+[data-kind="kiosk"] { font-size: 20px; max-width: none; }
+[data-kind="kiosk"] .tile { min-height: 140px; font-size: 22px; }
+[data-kind="kiosk"] .btn { min-height: 64px; font-size: 22px; padding: 0 28px; }
+[data-kind="kiosk"] .btn.step { min-width: 64px; }
+[data-kind="kiosk"] .member-input { font-size: 20px; padding: 12px; width: 100%; }
+.kiosk-done { text-align: center; padding: 48px 16px; display: grid; gap: 16px; justify-items: center; }
+.kiosk-done-label { font-size: 24px; margin: 0; }
+.kiosk-done-number { font-size: 120px; font-weight: 800; margin: 0; line-height: 1; }

@@ -22,6 +22,8 @@ import {
   type TableEntry,
   type TableRefusal
 } from './api'
+import Kiosk from './kiosk/Kiosk'
+import { kind } from './platform'
 
 /**
  * 두 가지 방법으로 들어옵니다.
@@ -70,6 +72,12 @@ export default function App() {
   // 돌아가면 렌더마다 부르는 hook 수가 달라지고, React 가 상태를
   // 어긋나게 짚습니다. 주소는 이 창이 열릴 때 정해져서 중간에 바뀌지
   // 않으므로, 갈라지는 자리는 맨 위가 맞습니다.
+  // 매장 단말 셸에 KIOSK 로 페어링돼 있으면 키오스크 화면입니다(store-app.md §9). 셸 밖에서는
+  // 늘 'web' 이라 지금까지의 동작이 그대로입니다. 영수증 QR 과 같은 이유로 hook 보다 먼저.
+  if (kind() === 'kiosk') {
+    return <Kiosk />
+  }
+
   const claimToken = claimTokenFromUrl()
   if (claimToken !== null) {
     return <OrderStatus token={claimToken} />
