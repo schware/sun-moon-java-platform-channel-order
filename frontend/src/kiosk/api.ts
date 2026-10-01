@@ -1,22 +1,19 @@
 /**
  * KIOSK 가 부르는 곳 — channel-order 가 아니라 <b>Device Server</b> (store-app.md §9).
  *
- * KIOSK 는 매장 단말입니다. 메뉴판·영업일자·주문·매출을 POS 와 같은 곳에서 같은
- * 신원(기기 토큰)으로 다룹니다. 매장은 화면이 고르지 않고 셸의 신원이 정합니다.
+ * KIOSK 는 매장 단말입니다. 메뉴판·영업일자·주문·매출을 POS 와 같은 곳에서 다룹니다.
+ * 매장·장비는 화면이 고르지 않고 셸에 설정된 값을 씁니다.
  */
 import { shell, type ShellIdentity } from '../platform'
 
 function me(): ShellIdentity {
   const id = shell()?.identity.get()
-  if (!id) throw new Error('페어링되지 않은 KIOSK 입니다')
+  if (!id) throw new Error('매장·장비가 설정되지 않은 KIOSK 입니다')
   return id
 }
 
 async function ds(path: string, init?: RequestInit): Promise<Response> {
-  const id = me()
-  const headers = new Headers(init?.headers)
-  headers.set('Authorization', `Device ${id.token}`)
-  return fetch(`${id.serverUrl}${path}`, { ...init, headers })
+  return fetch(`${me().serverUrl}${path}`, init)
 }
 
 async function failure(res: Response): Promise<Error> {
@@ -89,6 +86,8 @@ export async function placeKioskOrder(lines: KioskLine[], tranNo: string,
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
+      storeId: me().storeId,
+      deviceId: me().deviceId,
       tranNo,
       payment,
       memberNo,

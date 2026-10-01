@@ -15,7 +15,6 @@ export interface ShellIdentity {
   deviceId: string
   deviceType: string
   kdsRole: string | null
-  token: string
   serverUrl: string
 }
 

@@ -171,7 +171,7 @@ export default function Kiosk() {
   }
 
   if (!identity) {
-    return <div className="shell" data-kind="kiosk"><div className="error">페어링되지 않은 KIOSK 입니다.</div></div>
+    return <div className="shell" data-kind="kiosk"><div className="error">매장·장비가 설정되지 않은 KIOSK 입니다.</div></div>
   }
 
   if (phase.name === 'done') {
