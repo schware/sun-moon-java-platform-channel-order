@@ -135,6 +135,6 @@ export async function uploadSales(payloads: unknown[]): Promise<void> {
 
 /** 영수증 QR 주소 — 손님 휴대폰이 LTE 로 열 수 있어야 합니다(공인 주소). */
 export function claimUrl(token: string): string {
-  const base = import.meta.env.VITE_CLAIM_BASE ?? 'http://211.217.183.232:8085/channel-order/o'
+  const base = import.meta.env.VITE_CLAIM_BASE ?? 'http://sunmoonwork.duckdns.org:8085/channel-order/o'
   return `${base}/${encodeURIComponent(token)}`
 }
